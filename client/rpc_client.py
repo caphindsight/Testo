@@ -5,6 +5,7 @@ import yaml
 import xmlrpclib
 
 from testo_lib.console_table import *
+from testo_lib import problem_utils
 
 
 COMMANDS = {
@@ -22,6 +23,10 @@ def _parser(command):
 def _fail(message):
   print message
   exit(1)
+
+
+def _abs_path(path):
+  return os.path.join(os.getcwd(), path)
 
 
 def subcmd_help(args, stub):
@@ -48,7 +53,10 @@ def subcmd_problem(args, stub):
       help='Pull a problem from the database to a local directory.')
   parser.add_argument('--drop', action='store_true',
       help='Drop a problem from the database.')
-  parser.add_argument('directory', metavar='DIRECTORY', type=str, nargs='?')
+  parser.add_argument('-p', metavar='PROBLEM', type=str,
+      help='Problem name, if applicable.')
+  parser.add_argument('--dir', metavar='DIRECTORY', type=str,
+      help='Local directory to save/load problem data, if applicable.')
   _ = parser.parse_args(args)
   if _.list + _.push + _.pull + _.drop != 1:
     _fail('Exactly one action from (--list, --push, --pull, --drop) has to be specified')
@@ -61,11 +69,17 @@ def subcmd_problem(args, stub):
     for problem in problems:
       table.post(problem=problem['problem'], title=problem['title'])
   elif _.push:
-    _fail('Pushing problems is not implemented yet')
+    if _.dir is None: _fail('--dir must be specified.')
+    obj = problem_utils.load_problem(_abs_path(_.dir))
+    stub.problem_push(obj)
   elif _.pull:
-    _fail('Pulling problems is not implemented yet')
+    if _.p is None: _fail('-p must be specified.')
+    if _.dir is None: _fail('--dir must be specified.')
+    obj = stub.problem_pull(_.p)
+    problem_utils.save_problem(obj, _abs_path(_.dir))
   elif _.drop:
-    stub.problem_drop(_.directory)
+    if _.p is None: _fail('-p must be specified.')
+    stub.problem_drop(_.p)
 
 def main():
   config_file = os.path.join(
