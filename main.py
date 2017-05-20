@@ -57,7 +57,6 @@ class ConsoleReporter:
     pass
 
 def run_main(args):
-  print args
   assert args.lang == 'binary', 'Only \'binary\' language is supported currently.'
 
   print "Loading problem data.."
