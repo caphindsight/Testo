@@ -23,11 +23,11 @@ class ContentsChecker(Checker):
 
 
 class TokenizedChecker(Checker):
-  def extract_tokens(content):
-    pre_tokens = content.replace('\n', ' ').replace('\t', ' ').split(' ')
-    return [token for token in pre_tokens if token != '']
-
   def check(self, input_file, output_file, answer_file):
+    def extract_tokens(content):
+      pre_tokens = content.replace('\n', ' ').replace('\t', ' ').split(' ')
+      return [token for token in pre_tokens if token != '']
+
     output = TokenizedChecker.extract_tokens(open(output_file, 'r').read())
     answer = TokenizedChecker.extract_tokens(open(answer_file, 'w').read())
     if output == answer:
