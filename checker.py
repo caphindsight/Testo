@@ -29,7 +29,7 @@ class TokenizedChecker(Checker):
       return [token for token in pre_tokens if token != '']
 
     output = extract_tokens(open(output_file, 'r').read())
-    answer = extract_tokens(open(answer_file, 'w').read())
+    answer = extract_tokens(open(answer_file, 'r').read())
     if output == answer:
       return TestRes(
         verdict=Verdict.OK,
