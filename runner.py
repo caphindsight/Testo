@@ -2,8 +2,8 @@ from sandbox import *
 
 
 def _run_test(sandbox, test, checker):
-  self.sandbox.clean('iout')
-  self.sandbox.clean('ians')
+  sandbox.clean('iout')
+  sandbox.clean('ians')
   prepared_input = self.sandbox.get_file('ienv/input.txt')
   prepared_answer = self.sandbox.get_file('ians/answer.txt')
 
