@@ -4,8 +4,8 @@ from sandbox import *
 def _run_test(sandbox, test, checker):
   sandbox.clean('iout')
   sandbox.clean('ians')
-  prepared_input = self.sandbox.get_file('ienv/input.txt')
-  prepared_answer = self.sandbox.get_file('ians/answer.txt')
+  prepared_input = sandbox.get_file('ienv/input.txt')
+  prepared_answer = sandbox.get_file('ians/answer.txt')
 
   # Generating test data
   try:
