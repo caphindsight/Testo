@@ -69,6 +69,20 @@ class Limits:
       args.extend(['-k', self.stack_limit])
     return args
 
+  def merge(global_limits, limits):
+    if limits is None:
+      return global_limits
+    return Limits(
+      time_limit = limits.time_limit if limits.time_limit is not None
+                   else global_limits.time_limit,
+      mem_limit = limits.mem_limit if limits.mem_limit is not None
+                   else global_limits.mem_limit,
+      disk_limit = limits.disk_limit if limits.disk_limit is not None
+                   else global_limits.disk_limit,
+      stack_limit = limits.stack_limit if limits.stack_limit is not None
+                   else global_limits.stack_limit
+    )
+
 
 class IsolateRes:
   def __init__(self, return_code, isolate_stderr, meta):
@@ -115,10 +129,11 @@ class Sandbox:
       shutil.rmtree(self.box_dir)
     _run_isolate(['-b', self.box_id, '--cleanup'])
 
-  def clean(self):
-    if os.path.exists(self.box_dir):
-      shutil.rmtree(self.box_dir)
-    os.makedirs(self.box_dir)
+  def clean(self, subdir=''):
+    relevant_dir = os.path.join(self.box_dir, subdir)
+    if os.path.exists(relevant_dir):
+      shutil.rmtree(relevant_dir)
+    os.makedirs(relevant_dir)
 
   def get_file(self, relative_path):
     return os.path.join(self.box_dir, relative_path)
@@ -137,7 +152,7 @@ class Sandbox:
     open(internal_file_path, 'w').close()
     os.chmod(internal_file_path, mod)
     return internal_file_path
-    
+
   def open_prepared_file(self, relative_path, mod=FileMod.INPUT):
     internal_file_path = prepare_file(self, relative_path, mod)
     return open(internal_file_path, 'w')
@@ -161,4 +176,3 @@ class Sandbox:
     os.remove(meta_file)
     return IsolateRes(return_code=p.returncode,
         isolate_stderr=p.stderr.read(), meta=meta)
-
