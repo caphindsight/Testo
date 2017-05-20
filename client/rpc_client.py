@@ -4,8 +4,8 @@ from termcolor import *
 import yaml
 import xmlrpclib
 
-from testo_lib.console_table import *
-from testo_lib import problem_utils
+from console_table import *
+import problem_utils
 
 
 COMMANDS = {
