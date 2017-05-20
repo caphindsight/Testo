@@ -4,6 +4,7 @@ from subprocess import Popen, PIPE
 
 from constants import WHICH_PYTHON
 from errors import GeneratorError
+from sandbox import FileMod
 
 
 class Test(object):
@@ -24,6 +25,7 @@ class PreparedTest(Test):
     if not os.path.isfile(self.input_file):
       raise GeneratorError('Test input file not found: "%s"' % self.input_file)
     shutil.copyfile(self.input_file, prepared_input)
+    os.chmod(prepared_input, FileMod.INPUT)
     if not os.path.isfile(self.answer_file):
       raise GeneratorError('Test answer file not found: "%s"' % self.answer_file)
     shutil.copyfile(self.answer_file, prepared_answer)
