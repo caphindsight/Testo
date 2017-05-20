@@ -6,7 +6,7 @@ from constants import WHICH_PYTHON
 from errors import GeneratorError
 
 
-class Test:
+class Test(object):
   def __init__(self, test_n):
     self.test_n = test_n
 

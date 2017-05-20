@@ -14,3 +14,7 @@ class CheckerError(TestingSystemError):
     self.return_code = return_code
     self.stdout = stdout
     self.stderr = stderr
+
+class ConfigError(Exception):
+  def __init__(msg):
+    super(ConfigError, self).__init__(msg)

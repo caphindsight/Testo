@@ -1,7 +1,7 @@
 from test import PreparedTest, GeneratedTest
 
 
-class TestSet:
+class TestSet(object):
   def __init__(self, testset_n, limits=None):
     self.testset_n = testset_n
     self.limits = limits

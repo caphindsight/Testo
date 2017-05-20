@@ -2,7 +2,7 @@ class Problem:
   def __init__(self, **kw):
     self.problem_n = kw.get('problem_n')
     self.title = kw.get('title')
-    self.statement = kw.get('statement')
+    self.checker = kw.get('checker')
     self.global_limits = kw.get('global_limits')
     self.testsets = kw.get('testsets')
 
