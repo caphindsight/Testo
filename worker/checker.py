@@ -1,4 +1,4 @@
-from test import *
+from worker.model import *
 
 
 class Checker:

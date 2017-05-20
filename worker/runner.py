@@ -1,9 +1,7 @@
-from checker import *
-from errors import *
-from test import *
-from testset import *
-from model import *
-from sandbox import *
+from workers.checker import *
+from workers.errors import *
+from workers.model import *
+from workers.sandbox import *
 
 
 def _run_test(sandbox, test, checker, limits):
@@ -57,8 +55,7 @@ class Runner:
     self.sandbox = sandbox
 
   def run_tests(self, problem, program, reporter, testsets=None):
-    solution = None
-    reporter.solution_starts(solution, problem)
+    reporter.solution_starts(problem)
     if testsets is None:
       testsets = [i.testset_n for i in problem.testsets]
     self.sandbox.create()
@@ -70,18 +67,18 @@ class Runner:
       individual_results = []
       if testset.testset_n not in testsets:
         continue
-      reporter.testset_starts(solution, problem, testset)
+      reporter.testset_starts(problem, testset)
       limits = Limits.merge(problem.global_limits, testset.limits)
       for test in testset.tests():
         test_res = _run_test(self.sandbox, test, problem.checker, limits)
         individual_results.append(test_res)
-        reporter.test_done(solution, problem, testset, test, test_res)
+        reporter.test_done(problem, testset, test, test_res)
 
       testset_res = TestSetRes(testset.testset_n, individual_results)
       testset_results.append(testset_res)
-      reporter.testset_ends(solution, problem, testset, testset_res)
+      reporter.testset_ends(problem, testset, testset_res)
 
     solution_res = SolutionRes(testset_results)
-    reporter.solution_ends(solution, problem, solution_res)
+    reporter.solution_ends(problem, solution_res)
     self.sandbox.delete()
     return solution_res

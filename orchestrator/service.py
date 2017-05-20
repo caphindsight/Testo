@@ -1,7 +1,5 @@
 import pymongo
 
-from constants import *
-
 
 def _doc_body(doc):
   del doc['_id']

@@ -1,11 +1,9 @@
 import os
 import yaml
 
-from errors import *
-from checker import *
-from model import *
-from sandbox import Limits
-from testset import *
+from worker.checker import *
+from worker.errors import *
+from worker.model import *
 
 
 def load_problem(problem_dir):

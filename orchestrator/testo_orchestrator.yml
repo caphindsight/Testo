@@ -1,0 +1,11 @@
+mongo:
+  address: 'mongodb://localhost:32768/'
+  database: 'testo'
+
+orchestrator_rpc:
+  addr: '0.0.0.0'
+  port: 30730
+  log_requests: true
+
+worker_pool:
+  - 'http://localhost:30600'

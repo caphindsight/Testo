@@ -1,10 +1,25 @@
-import os
-import shutil
-from subprocess import Popen, PIPE
+from worker.errors import *
 
-from constants import WHICH_PYTHON
-from errors import GeneratorError
-from sandbox import FileMod
+class Problem:
+  def __init__(self, **kw):
+    self.problem_n = kw.get('problem_n')
+    self.title = kw.get('title')
+    self.checker = kw.get('checker')
+    self.global_limits = kw.get('global_limits')
+    self.testsets = kw.get('testsets')
+
+
+class Solution:
+  def __init__(self, **kw):
+    self.problem_n = kw.get('problem_n')
+    self.user = kw.get('user')
+    self.submitted_by = kw.get('submitted_by')
+    self.language = kw.get('language')
+
+
+class SolutionRes:
+  def __init__(self, testset_results):
+    self.testset_results = testset_results
 
 
 class Test(object):
@@ -66,3 +81,41 @@ class TestRes:
     self.running_duration = kw.get('running_duration')
     self.memory_peak = kw.get('memory_peak')
     self.comment = kw.get('comment')
+
+
+class TestSet(object):
+  def __init__(self, testset_n, limits=None):
+    self.testset_n = testset_n
+    self.limits = limits
+
+  def tests(self):
+    pass
+
+
+class PreparedTestSet(TestSet):
+  def __init__(self, testset_n, tests_data, limits=None):
+    super(PreparedTestSet, self).__init__(testset_n, limits)
+    self.tests_data = tests_data
+
+  def tests(self):
+    for (test_n, input_file, answer_file) in self.tests_data:
+      yield PreparedTest(test_n, input_file, answer_file)
+
+
+class GeneratedTestSet(TestSet):
+  def __init__(self, testset_n, generator_script, tests_count, limits=None):
+    super(GeneratedTestSet, self).__init__(testset_n, limits)
+    self.generator_script = generator_script
+    self.tests_count = tests_count
+
+  def tests(self):
+    width = len(str(self.tests_count))
+    for i in range(1, self.tests_count + 1):
+      test_n = '0' * (width - len(str(i))) + str(i)
+      yield GeneratedTest(test_n, generator_script)
+
+
+class TestSetRes:
+  def __init__(self, testset_n, individual_results):
+    self.testset_n = testset_n
+    self.individual_results = individual_results
