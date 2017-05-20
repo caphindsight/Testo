@@ -81,5 +81,5 @@ class Runner:
 
     solution_res = SolutionRes(testset_results)
     reporter.solution_ends(solution, problem, solution_res)
-    #self.sandbox.delete()
+    self.sandbox.delete()
     return solution_res
