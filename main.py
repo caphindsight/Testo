@@ -47,7 +47,7 @@ class ConsoleReporter:
     self.table.post(
       test_n=test.test_n + '.',
       verdict=colorize_verdict(test_res.verdict),
-      comment=rest_res.comment,
+      comment=test_res.comment,
     )
 
   def testset_ends(self, solution, problem, testset, testset_res):
