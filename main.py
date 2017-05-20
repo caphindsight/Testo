@@ -1,4 +1,5 @@
 import argparse
+import os
 import termcolor
 
 from console_table import *
@@ -6,6 +7,10 @@ import loader
 import runner
 import sandbox
 from test import Verdict
+
+
+def absolute_path(relative_path):
+  return os.path.join(os.getcwd(), relative_path)
 
 
 class ConsoleReporter:
@@ -56,7 +61,7 @@ def run_main(args):
   assert args.lang == 'binary', 'Only \'binary\' language is supported currently.'
 
   print "Loading problem data.."
-  problem = loader.load_problem(args.p)
+  problem = loader.load_problem(absolute_path(args.p))
 
   print "Initializing sandbox.."
   box = sandbox.Sandbox(17)
@@ -69,7 +74,7 @@ def run_main(args):
   print "Running tests.."
   print
 
-  rn.run_tests(problem, args.solution, rep, testsets)
+  rn.run_tests(problem, absolute_path(args.solution), rep, testsets)
 
   print "Finalizing.."
   box.delete()
