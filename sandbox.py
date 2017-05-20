@@ -1,11 +1,8 @@
 import os
 import shutil
 
+from constants import WHICH_ISOLATE, SANDBOX_DATA_DIR
 from subprocess import *
-
-
-WHICH_ISOLATE = '/usr/local/bin/isolate'
-SANDBOX_DATA_DIR = '/tmp'
 
 
 class MountOpts:
