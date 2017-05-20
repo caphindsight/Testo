@@ -1,6 +1,6 @@
 import argparse
 import os
-import termcolor
+from termcolor import *
 
 from console_table import *
 import loader
@@ -30,19 +30,19 @@ class ConsoleReporter:
   def test_done(self, solution, problem, testset, test, test_res):
     def colorize_verdict(verdict):
       if verdict == Verdict.OK:
-        return termcolor.colored('OK', 'green')
+        return colored('OK', 'green')
       elif verdict == Verdict.WA:
-        return termcolor.colored('WA', 'red')
+        return colored('WA', 'red')
       elif verdict == Verdict.PE:
-        return termcolor.colored('PE', 'cyan')
+        return colored('PE', 'cyan')
       elif verdict == Verdict.CR:
-        return termcolor.colored('CR', 'yellow')
+        return colored('CR', 'yellow')
       elif verdict == Verdict.TL:
-        return termcolor.colored('TL', 'cyan')
+        return colored('TL', 'cyan')
       elif verdict == Verdict.CF:
-        return termcolor.colored('CF', 'magenta')
+        return colored('CF', 'magenta')
       elif verdict == Verdict.GF:
-        return termcolor.colored('GF', 'magenta')
+        return colored('GF', 'magenta')
 
     self.table.post(
       test_n=test.test_n + '.',
