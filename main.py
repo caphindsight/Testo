@@ -74,6 +74,7 @@ def run_main(args):
   print "Running tests.."
   print
 
+  rep = ConsoleReporter()
   rn.run_tests(problem, absolute_path(args.solution), rep, testsets)
 
   print "Finalizing.."
