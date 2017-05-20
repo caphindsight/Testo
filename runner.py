@@ -68,7 +68,7 @@ class Runner:
       reporter.testset_starts(solution, problem, testset)
       limits = Limits.merge(problem.global_limits, testset.limits)
       for test in testset.tests():
-        test_res = _run_test(self.sandbox, test, problem.checker)
+        test_res = _run_test(sandbox, test, problem.checker)
         individual_results.append(test_res)
         reporter.test_done(solution, problem, testset, test, test_res)
 
