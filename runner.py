@@ -1,7 +1,7 @@
 from sandbox import *
 
 
-def _run_test(sandbox, test, checker):
+def _run_test(sandbox, test, checker, limits):
   sandbox.clean('iout')
   sandbox.clean('ians')
   prepared_input = sandbox.get_file('ienv/input.txt')
@@ -68,7 +68,7 @@ class Runner:
       reporter.testset_starts(solution, problem, testset)
       limits = Limits.merge(problem.global_limits, testset.limits)
       for test in testset.tests():
-        test_res = _run_test(self.sandbox, test, problem.checker)
+        test_res = _run_test(self.sandbox, test, problem.checker, limits)
         individual_results.append(test_res)
         reporter.test_done(solution, problem, testset, test, test_res)
 
