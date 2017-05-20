@@ -18,14 +18,14 @@ def _run_test(sandbox, test, checker):
     )
 
   # Running solution
-  self.sandbox.prepare_file('iout/stdout.txt', FileMod.OUTPUT)
-  self.sandbox.prepare_file('iout/stderr.txt', FileMod.OUTPUT)
+  sandbox.prepare_file('iout/stdout.txt', FileMod.OUTPUT)
+  sandbox.prepare_file('iout/stderr.txt', FileMod.OUTPUT)
   redirects = Redirects(
     stdin='/ienv/input.txt',
     stdout='/iout/stdout.txt',
     stderr='/iout/stderr.txt',
   )
-  run_res = self.sandbox.run('/ienv/program', redirects, limits)
+  run_res = sandbox.run('/ienv/program', redirects, limits)
   if run_res.return_code != 0:
     return TestRes(
       test_n=test.test_n,
@@ -36,7 +36,7 @@ def _run_test(sandbox, test, checker):
   # Running checker
   try:
     chk_res = checker.check(prepared_input,
-        self.sandbox.get_file('iout/stdout.txt'), prepared_answer)
+        sandbox.get_file('iout/stdout.txt'), prepared_answer)
     chk_res.test_n = test.test_n
     return chk_res
   except CheckerError, err:
