@@ -1,4 +1,5 @@
 from checker import *
+from errors import *
 from test import *
 from testset import *
 from model import *
