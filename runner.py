@@ -52,6 +52,7 @@ class Runner:
     self.sandbox = sandbox
 
   def run_tests(self, problem, program, reporter, testsets=None):
+    solution = None
     reporter.solution_starts(solution, problem)
     if testsets is None:
       testsets = [i.testset_n for i in problem.testsets]
