@@ -47,12 +47,12 @@ class GeneratedTest(Test):
 
 
 class Verdict:
-  OK = 'ok',
-  WA = 'wrong_answer',
-  PE = 'presentation_error',
-  CR = 'crash',
-  TL = 'time_limit_exceeded',
-  CF = 'checker_failure',
+  OK = 'ok'
+  WA = 'wrong_answer'
+  PE = 'presentation_error'
+  CR = 'crash'
+  TL = 'time_limit_exceeded'
+  CF = 'checker_failure'
   GF = 'generator_failure'
 
 
