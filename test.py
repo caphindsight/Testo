@@ -60,7 +60,7 @@ class Verdict:
 
 class TestRes:
   def __init__(self, **kw):
-    self.test_n = kw['test_n']
+    self.test_n = kw.get('test_n')
     self.verdict = kw.get('verdict')
     self.points = kw.get('points')
     self.running_duration = kw.get('running_duration')
