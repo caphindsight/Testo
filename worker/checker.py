@@ -1,6 +1,3 @@
-from worker.model import *
-
-
 class Checker:
   def check(self, input_file, output_file, answer_file):
     raise CheckerError('Pure virtual method call: Checker.check')
@@ -11,15 +8,15 @@ class ContentsChecker(Checker):
     output = open(output_file, 'r').read()
     answer = open(answer_file, 'w').read()
     if output == answer:
-      return TestRes(
-        verdict=Verdict.OK,
-        comment='file contents match'
-      )
+      return {
+        'verdict': 'ok',
+        'comment': 'file contents match'
+      }
     else:
-      return TestRes(
-        verdict=Verdict.WA,
-        comment='file contents differ'
-      )
+      return {
+        'verdict': 'wrong_answer',
+        'comment': 'file contents differ'
+      }
 
 
 class TokenizedChecker(Checker):
@@ -31,12 +28,12 @@ class TokenizedChecker(Checker):
     output = extract_tokens(open(output_file, 'r').read())
     answer = extract_tokens(open(answer_file, 'r').read())
     if output == answer:
-      return TestRes(
-        verdict=Verdict.OK,
-        comment='file tokens match'
-      )
+      return {
+        'verdict': 'ok',
+        'comment': 'file tokens match'
+      }
     else:
-      return TestRes(
-        verdict=Verdict.WA,
-        comment='file tokens differ'
-      )
+      return {
+        'verdict': 'wrong_answer',
+        'comment': 'file tokens differ'
+      }

@@ -1,24 +1,20 @@
-from workers.checker import *
-from workers.errors import *
-from workers.model import *
-from workers.sandbox import *
+import base64
+import logging
+
+from checker import *
+from sandbox import *
 
 
-def _run_test(sandbox, test, checker, limits):
+def _run_test(sandbox, test_obj, checker, limits):
+  # Preparing test
   sandbox.clean('iout')
   sandbox.clean('ians')
+  with sandbox.open_prepared_file('ienv/input.txt', FileMod.INPUT) as input_stream:
+    input_stream.write(base64.b64decode(test_obj['input_b64']))
+  with sandbox.open_prepared_file('ienv/answer.txt', FileMod.INPUT) as answer_stream:
+    answer_stream.write(base64.b64decode(test_obj['answer_b64']))
   prepared_input = sandbox.get_file('ienv/input.txt')
   prepared_answer = sandbox.get_file('ians/answer.txt')
-
-  # Generating test data
-  try:
-    test.prepare_test(prepared_input, prepared_answer)
-  except GeneratorError, err:
-    return TestRes(
-      test_n=test.test_n,
-      verdict=Verdict.GF,
-      comment=err.message,
-    )
 
   # Running solution
   sandbox.prepare_file('iout/stdout.txt', FileMod.OUTPUT)
@@ -30,55 +26,55 @@ def _run_test(sandbox, test, checker, limits):
   )
   run_res = sandbox.run('/ienv/program', redirects, limits)
   if run_res.return_code != 0:
-    return TestRes(
-      test_n=test.test_n,
-      verdict=Verdict.CR,
-      comment=run_res.isolate_stderr,
-    )
+    return {
+      'verdict': 'crashed',
+      'comment': run_res.isolate_stderr
+    }
 
   # Running checker
   try:
-    chk_res = checker.check(prepared_input,
+    return checker.check(prepared_input,
         sandbox.get_file('iout/stdout.txt'), prepared_answer)
-    chk_res.test_n = test.test_n
-    return chk_res
   except CheckerError, err:
-    return TestRes(
-      test_n=test.test_n,
-      verdict=Verdict.CF,
-      comment=err.message,
-    )
+    return {
+      'verdict': 'checker_failure',
+      'comment': err.message
+    }
 
 
-class Runner:
-  def __init__(self, sandbox):
-    self.sandbox = sandbox
+def run_tests(sandbox, problem_obj, solution_obj, report_cb):
+  logging.info('Running tests for %s (problem %s, user %s)' %
+                (solution_obj['solution'], solution_obj['problem'], solution_obj['user']))
+  testsets = solution_obj.get('testsets')
+  if testsets is None:
+    testsets = [testset_obj['testset'] for testset_obj in problem_obj['testsets']]
+  sandbox.create()
+  sandbox.mount('ienv', MountOpts.READ_ONLY)
+  sandbox.mount('iout', MountOpts.READ_AND_WRITE)
 
-  def run_tests(self, problem, program, reporter, testsets=None):
-    reporter.solution_starts(problem)
-    if testsets is None:
-      testsets = [i.testset_n for i in problem.testsets]
-    self.sandbox.create()
-    self.sandbox.mount('ienv', MountOpts.READ_ONLY)
-    self.sandbox.mount('iout', MountOpts.READ_AND_WRITE)
-    self.sandbox.copy_file(program, 'ienv/program', FileMod.EXECUTABLE)
-    testset_results = []
-    for testset in problem.testsets:
-      individual_results = []
-      if testset.testset_n not in testsets:
-        continue
-      reporter.testset_starts(problem, testset)
-      limits = Limits.merge(problem.global_limits, testset.limits)
-      for test in testset.tests():
-        test_res = _run_test(self.sandbox, test, problem.checker, limits)
-        individual_results.append(test_res)
-        reporter.test_done(problem, testset, test, test_res)
+  with sandbox.open_prepared_file('ienv/program', FileMod.EXECUTABLE) as program_stream:
+    program_stream.write(base64.b64_decode(solution_obj['source_code_b64']))
 
-      testset_res = TestSetRes(testset.testset_n, individual_results)
-      testset_results.append(testset_res)
-      reporter.testset_ends(problem, testset, testset_res)
+  limits = Limits(
+    time_limit=problem_obj['limits'].get('time_limit'),
+    mem_limit=problem_obj['limits'].get('mem_limit'),
+    disk_limit=problem_obj['limits'].get('disk_limit'),
+    stack_limit=problem_obj['limits'].get('stack_limit'),
+  )
 
-    solution_res = SolutionRes(testset_results)
-    reporter.solution_ends(problem, solution_res)
-    self.sandbox.delete()
-    return solution_res
+  if problem_obj['checker'] == 'identic':
+    checker = ContentsChecker()
+  elif problem_obj['checker'] == 'tokenized':
+    checker = TokenizedChecker()
+  else:
+    raise Exception('Unsupported checker: %s' % problem_obj['checker'])
+
+  for testset_obj in problem_obj['testsets']:
+    testset = testset_obj['testset']
+    if testset not in testsets:
+      continue
+    for test_obj in testset_obj['tests']:
+      test_res = _run_test(sandbox, test_obj, checker, limits)
+      report_cb(testset, test_obj['test'], test_res)
+
+  sandbox.delete()

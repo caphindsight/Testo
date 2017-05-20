@@ -2,11 +2,6 @@ mongo:
   address: 'mongodb://localhost:32768/'
   database: 'testo'
 
-worker_rpc:
-  addr: '0.0.0.0'
-  port: 30600
-  log_requests: true
-
 sandbox:
   box_id: 4
 

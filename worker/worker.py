@@ -1,9 +1,11 @@
-from SimpleXMLRPCServer import SimpleXMLRPCServer
+import logging
+import os
 import pymongo
+import time
 import yaml
-import xmlrpclib
 
-from worker.service import WorkerService
+import sandbox
+import runner
 
 def main():
   config_file = os.path.join(
@@ -12,24 +14,32 @@ def main():
   config = yaml.load(open(config_file, 'r').read())
   mongo_client = pymongo.MongoClient(config['mongo']['address'])
   mongo_db = mongo_client[config['mongo']['database']]
-
-  testing_thread = TestingThread(mongo_db, config['sandbox']['box_id'],
-      max_queue_len=config['queue']['max_len'])
-  testing_thread.start_thread()
-
-  service = WorkerService(mongo_db, testing_thread)
-
-  server = SimpleXMLRPCServer((config['worker_rpc']['addr'], config['worker_rpc']['port']),
-      logRequests=config['worker_rpc']['log_requests'])
-  server.register_instance(service)
+  col_problems = mongo_db['problems']
+  col_solutions = mongo_db['solutions']
 
   try:
-    print 'Testo worker RPC server is listening on http://%s:%s/' %
-          (config['worker_rpc']['addr'], config['worker_rpc']['port'])
+    print 'Testo worker is now active'
     print 'Press Ctrl+C to quit'
-    server.serve_forever()
+
+    while True:
+      solution_obj = col_solutions.find_one_and_update(
+        {'status': 'queued'}, {'$set': {'status': 'running'}})
+      if solution_obj is not None:
+        solution = solution_obj['solution']
+        problem = solution_obj['problem']
+        problem_obj = col_problems.find_one({'problem': problem})
+        def report_cb(testset, test, result):
+          col_solutions.update_one({'solution': solution},
+              {'$set': {'results.' + testset + '.' + test: result}})
+        box = sandbox.Sandbox(config['sandbox']['box_id'])
+        try:
+          runner.run_tests(box, problem_obj, solution_obj, report_cb)
+        except Exception, e:
+          col_solutions.update_one({'solution': solution},
+              {'$set': {'status': 'failed', 'status_description': str(e)}})
+      else:
+        time.sleep(1.0)
   except KeyboardInterrupt:
-    testing_thread.stop_thread()
     print 'Bye!'
 
 
