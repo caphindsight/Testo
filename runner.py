@@ -1,3 +1,4 @@
+from checker import *
 from test import *
 from testset import *
 from model import *

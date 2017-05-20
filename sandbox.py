@@ -92,7 +92,6 @@ class IsolateRes:
 
 
 def _run_isolate(args):
-  print args
   p = Popen([WHICH_ISOLATE] + [str(i) for i in args],
       stdin=PIPE, stdout=PIPE, stderr=PIPE)
   p.wait()
