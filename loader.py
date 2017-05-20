@@ -39,6 +39,7 @@ def load_problem(problem_dir):
         ans = inp + '.a'
         if os.path.isfile(inp) and os.path.isfile(ans):
           tests_data.append((f, inp, ans))
+      tests_data.sort(key=lambda td: td[0])
       testset = PreparedTestSet(testset_n, tests_data)
     else:
       raise ConfigError('Unsupported testset type: %s' % testset_yaml['type'])
