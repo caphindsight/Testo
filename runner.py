@@ -33,7 +33,7 @@ def _run_test(sandbox, test, checker, limits):
     return TestRes(
       test_n=test.test_n,
       verdict=Verdict.CR,
-      comment=run_res.meta,
+      comment=run_res.isolate_stderr,
     )
 
   # Running checker
