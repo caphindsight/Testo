@@ -28,8 +28,8 @@ class TokenizedChecker(Checker):
       pre_tokens = content.replace('\n', ' ').replace('\t', ' ').split(' ')
       return [token for token in pre_tokens if token != '']
 
-    output = TokenizedChecker.extract_tokens(open(output_file, 'r').read())
-    answer = TokenizedChecker.extract_tokens(open(answer_file, 'w').read())
+    output = extract_tokens(open(output_file, 'r').read())
+    answer = extract_tokens(open(answer_file, 'w').read())
     if output == answer:
       return TestRes(
         verdict=Verdict.OK,
