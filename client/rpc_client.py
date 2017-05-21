@@ -158,6 +158,7 @@ def _monitor_solution(stub, id):
     print 'Submission status:', colored('compilation_error', 'magenta', attrs=['dark'])
     print solution_obj['status_description']
   elif solution_obj['status'] == 'ready':
+    print solution_obj
     print 'Submission status:', colored('ready', 'green', attrs=['dark'])
     testsets = solution_obj.get('testsets')
     if testsets is None:
