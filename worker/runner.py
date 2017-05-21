@@ -29,17 +29,21 @@ def _run_test(sandbox, test_obj, checker, limits):
   if run_res.return_code != 0:
     return {
       'verdict': 'crashed',
-      'comment': run_res.isolate_stderr
+      'runtime': run_res.meta,
+      'comment': run_res.isolate_stderr,
     }
 
   # Running checker
   try:
-    return checker.check(prepared_input,
+    chk_res = checker.check(prepared_input,
         sandbox.get_file('iout/stdout.txt'), prepared_answer)
+    chk_res['runtime'] = run_res.meta
+    return chk_res
   except CheckerError, err:
     return {
       'verdict': 'checker_failure',
-      'comment': err.message
+      'runtime': run_res.meta,
+      'comment': err.message,
     }
 
 

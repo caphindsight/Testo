@@ -35,6 +35,7 @@ def main():
           col_solutions.update_one({'solution': solution},
               {'$set':
                 {'status': 'running' if success else 'compilation_error',
+                 'status_terminal': True,
                  'compiler_log_b64': base64.b64encode(compiler_log)}})
         def report_cb(testset, test, result):
           col_solutions.update_one({'solution': solution},
@@ -44,10 +45,10 @@ def main():
           runner.run_tests(box, problem_obj, solution_obj, compiler_cb, report_cb)
           if not compilation_resulted_in_error:
             col_solutions.update_one({'solution': solution},
-                {'$set': {'status': 'ready'}})
+                {'$set': {'status': 'ready', 'status_terminal': True}})
         except Exception, e:
           col_solutions.update_one({'solution': solution},
-              {'$set': {'status': 'failed', 'status_description': str(e)}})
+              {'$set': {'status': 'failed', 'status_terminal': True, 'status_description': str(e)}})
           if config['debug']:
             raise
       else:

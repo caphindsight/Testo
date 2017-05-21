@@ -30,43 +30,33 @@ class RpcService:
   def problem_pull(self, problem):
     return _doc_body(self.col_problems.find_one({'problem': problem}))
 
-  def problem_push(self, data):
+  def problem_push(self, problem_obj):
     self.col_problems.find_one_and_update(
-        {'problem': data['problem']}, {'$set': data}, upsert=True)
+        {'problem': problem_obj['problem']}, {'$set': problem_obj}, upsert=True)
 
   def problem_drop(self, problem):
     res = self.col_problems.delete_one({'problem': problem})
     if res.deleted_count != 1:
       raise Exception('Found %s problems matching the drop request' % res.deleted_count)
 
-  def run(self, args):
+  def run(self, solution_obj):
     id = _rand_id()
-    solution_obj = {
-      'language': args['language'],
-      'problem': args['problem'],
+    solution_doc = {
+      'language': solution_obj['language'],
+      'problem': solution_obj['problem'],
       'status': 'queued',
+      'status_terminal': False,
       'solution': id,
-      'source_code_b64': args['source_code_b64'],
-      'testsets': args['testsets'],
+      'source_code_b64': solution_obj['source_code_b64'],
+      'testsets': solution_obj['testsets'],
       'user': 'default_user'
     }
-    self.col_solutions.insert_one(solution_obj)
+    self.col_solutions.insert_one(solution_doc)
     return id
 
-  def contest_list(self):
-    result = []
-    for contest in self.col_contests.find():
-      result.append({
-        'contest': contest['contest'],
-        'title': contest['title'],
-        'schedule': contest['schedule'],
-        'policy': contest['policy']
-      })
-    return result
-
-  def contest_pull(self, contest):
-    return _doc_body(self.col_contests.find_one({'contest': contest}))
-
-  def contest_push(self, data):
-    self.col_contests.find_one_and_update(
-        {'contest': data['contest']}, {'$set': data}, upsert=True)
+  def monitor(self, solution):
+    solution_obj = self.col_solutions.find_one({'solution': solution})
+    if solution_obj is None:
+      return None
+    else:
+      return _doc_body(solution_obj)

@@ -1,7 +1,9 @@
 import argparse
 import base64
+import os
 import sys
 from termcolor import *
+import time
 import yaml
 import xmlrpclib
 
@@ -12,7 +14,7 @@ import problem_utils
 COMMANDS = {
   'help': 'Show this help message.',
   'problem': 'Manage problem database.',
-  'run': 'Run solution against prepared tests.'
+  'run': 'Run solution against prepared tests.',
 }
 
 def _parser(command):
@@ -29,6 +31,29 @@ def _fail(message):
 
 def _abs_path(path):
   return os.path.join(os.getcwd(), path)
+
+
+def _basename_noext(path):
+  bn = os.path.basename(path)
+  return os.path.splitext(bn)[0]
+
+
+def _ext(path):
+  bm = os.path.basename(path)
+  return ps.path.splitext(bn)[1]
+
+
+def _detect_language(ext):
+  lang_map = {
+    '.cc': 'cxx11',
+    '.c++': 'cxx11',
+    '.cpp': 'cxx11',
+    '.cxx': 'cxx11',
+  }
+  res = lang_map.get(ext)
+  if res is None:
+    _fail('Unrecognized language extension: %s' % ext)
+  return res
 
 
 def subcmd_help(args, stub):
@@ -84,6 +109,89 @@ def subcmd_problem(args, stub):
     stub.problem_drop(_.p)
 
 
+TESTS_CONSOLE_TABLE = ConsoleTable([
+  TableCol('testn', 4, AlignMode.RIGHT),
+  TableCol('verdict'),
+  TableCol('comment', 20),
+])
+
+
+def _colored_verdict(verdict):
+  if verdict == 'ok':
+    return colored('OK', 'green')
+  elif verdict == 'wrong_answer':
+    return colored('WA', 'red')
+  elif verdict == 'presentation_error':
+    return colored('PE', 'cyan')
+  elif verdict == 'idle':
+    return colored('IL', 'blue')
+  elif verdict == 'crash' or verdict == 'crashed':
+    return colored('CR', 'yellow')
+  elif verdict == 'security_violation':
+    return colored('SV', 'yellow')
+  elif verdict == 'timeouted':
+    return colored('TO', 'blue')
+  elif verdict == 'out_of_memory':
+    return colored('OM', 'blue')
+  elif verdict == 'out_of_disk':
+    return colored('OD', 'blue')
+  elif verdict == 'out_of_stack':
+    return colored('OS', 'blue')
+  elif verdict == 'generator_failure':
+    return colored('GF', 'magenta')
+  elif verdict == 'checker_failure':
+    return colored('CF', 'magenta')
+  else:
+    return '??'
+
+
+def _report_tests(tests):
+  for test in sorted(list(tests)):
+    TESTS_CONSOLE_TABLE.post(
+      testn=test + '.',
+      verdict=_colored_verdict(tests[test]['verdict']),
+      comment=tests[test]['comment']
+    )
+    time.sleep(0.3)
+
+
+def _report_testset(testset):
+  print
+  print 'Tests from testset:', colored(testset, attrs=['underline'])
+
+
+def _monitor_solution(stub, id):
+  terminate = False
+  reported_testsets = dict()
+  current_testset = ''
+  while not terminate:
+    solution_obj = stub.monitor(id)
+    terminate = solution_obj['status_terminal']
+    new_testsets = dict()
+    for testset in solution_obj['testsets']:
+      if not reported_testsets.has_key(testset):
+        reported_testsets[testset] = dict()
+      testset_obj = solution_obj['testsets'][testset]
+      for test in testset_obj:
+        if not reported_testsets[testset].has_key(test):
+          if not new_testsets.has_key(testset):
+            new_testsets[testset] = dict()
+          new_testsets[testset][test] = new_testsets[testset][test]
+    if current_testset in new_testsets:
+      _report_tests(new_testsets[current_testset])
+      del new_testsets[current_testset]
+    for testset in new_testsets:
+      _report_testset(testset)
+      _report_tests(new_testsets[testset])
+      current_testset = testset
+    if terminate:
+      if solution_obj['status'] == 'compilation_error':
+        print 'Solution status:', colored('compilation error', 'red')
+        print base64.b64decode(solution_obj['compiler_log_b64'])
+      elif solution_obj['status'] == 'failed':
+        print 'Testing system error:', solution_obj['status_description']
+
+
 def subcmd_run(args, stub):
   parser = _parser('run')
   parser.add_argument('-p', metavar='PROBLEM', type=str,
@@ -94,16 +202,27 @@ def subcmd_run(args, stub):
       help='Programming language in which your program is written.')
   parser.add_argument('solution', metavar='SOLUTION',
       help='Solution source code file.')
+  parser.add_argument('-d', action='store_true',
+      help='Detached mode: only print the submission id and exit.')
   _ = parser.parse_args(args)
 
-  source_code_b64 = base64.b64encode(open(_.solution, 'r').read())
+  solution = _abs_path(_.solution)
+  problem = _.p if _.p is not None else _basename_noext(solution)
+  language = _.l if _.l is not None else _detect_language(_ext(solution))
+  source_code_b64 = base64.b64encode(open(solution, 'r').read())
+  testsets = _.t.split(',') if _.t is not None else None
   id = stub.run({
-    'language': _.l,
-    'problem': _.p,
+    'language': language,
+    'problem': problem,
     'source_code_b64': source_code_b64,
-    'testsets': _.t
+    'testsets': testsets
   })
-  print id
+
+  if _.d:
+    print id
+  else:
+    _monitor_solution(stub, id)
+
 
 def main():
   config_file = os.path.join(
