@@ -29,7 +29,9 @@ def main():
         solution = solution_obj['solution']
         problem = solution_obj['problem']
         problem_obj = col_problems.find_one({'problem': problem})
+        compilation_resulted_in_error = False
         def compiler_cb(success, compiler_log):
+          compilation_resulted_in_error = True
           col_solutions.update_one({'solution': solution},
               {'$set':
                 {'status': 'running' if success else 'compilation_error',
@@ -40,8 +42,9 @@ def main():
         box = sandbox.Sandbox(config['sandbox']['box_id'])
         try:
           runner.run_tests(box, problem_obj, solution_obj, compiler_cb, report_cb)
-          col_solutions.update_one({'solution': solution},
-              {'$set': {'status': 'ready'}})
+          if not compilation_resulted_in_error:
+            col_solutions.update_one({'solution': solution},
+                {'$set': {'status': 'ready'}})
         except Exception, e:
           col_solutions.update_one({'solution': solution},
               {'$set': {'status': 'failed', 'status_description': str(e)}})
