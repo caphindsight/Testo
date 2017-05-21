@@ -1,3 +1,4 @@
+import base64
 import logging
 import os
 import pymongo
@@ -23,17 +24,22 @@ def main():
 
     while True:
       solution_obj = col_solutions.find_one_and_update(
-        {'status': 'queued'}, {'$set': {'status': 'running'}})
+        {'status': 'queued'}, {'$set': {'status': 'compiling'}})
       if solution_obj is not None:
         solution = solution_obj['solution']
         problem = solution_obj['problem']
         problem_obj = col_problems.find_one({'problem': problem})
+        def compiler_cb(success, compiler_log):
+          col_solutions.update_one({'solution': solution},
+              {'$set':
+                {'status': 'running' if success else 'compilation_error',
+                 'compiler_log_b64': base64.b64encode(compiler_log)}})
         def report_cb(testset, test, result):
           col_solutions.update_one({'solution': solution},
               {'$set': {'results.' + testset + '.' + test: result}})
         box = sandbox.Sandbox(config['sandbox']['box_id'])
         try:
-          runner.run_tests(box, problem_obj, solution_obj, report_cb)
+          runner.run_tests(box, problem_obj, solution_obj, compiler_cb, report_cb)
           col_solutions.update_one({'solution': solution},
               {'$set': {'status': 'ready'}})
         except Exception, e:

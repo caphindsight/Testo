@@ -2,6 +2,7 @@ import base64
 import logging
 
 from checker import *
+import compiler
 from sandbox import *
 
 
@@ -42,7 +43,7 @@ def _run_test(sandbox, test_obj, checker, limits):
     }
 
 
-def run_tests(sandbox, problem_obj, solution_obj, report_cb):
+def run_tests(sandbox, problem_obj, solution_obj, compiler_cb, report_cb):
   logging.info('Running tests for %s (problem %s, user %s)' %
                 (solution_obj['solution'], solution_obj['problem'], solution_obj['user']))
   testsets = solution_obj.get('testsets')
@@ -52,8 +53,16 @@ def run_tests(sandbox, problem_obj, solution_obj, report_cb):
   sandbox.mount('ienv', MountOpts.READ_ONLY)
   sandbox.mount('iout', MountOpts.READ_AND_WRITE)
 
-  with sandbox.open_prepared_file('ienv/program', FileMod.EXECUTABLE) as program_stream:
+  language = solution_obj['language']
+  ext = compiler.file_extension(language)
+  with sandbox.open_prepared_file('ienv/program' + ext, FileMod.INPUT) as program_stream:
     program_stream.write(base64.b64decode(solution_obj['source_code_b64']))
+
+  compiler_res = compiler.compile(sandbox, sandbox.get('ienv/program' + ext),
+      sandbox.get('ienv/program'))
+  compiler_cb(compiler_res.success, compiler_res.compiler_log)
+  if not compiler_res.success:
+    return
 
   limits = Limits(
     time_limit=problem_obj['limits'].get('time_limit'),
