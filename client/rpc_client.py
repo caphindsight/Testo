@@ -112,6 +112,8 @@ def subcmd_problem(args, stub):
 TESTS_CONSOLE_TABLE = ConsoleTable([
   TableCol('testn', 4, AlignMode.RIGHT),
   TableCol('verdict'),
+  TableCol('time', 7),
+  TableCol('mem', 9),
   TableCol('comment', 20),
 ])
 
@@ -146,11 +148,14 @@ def _colored_verdict(verdict):
 
 
 def _monitor_solution(stub, id):
+  status = ''
   while True:
     solution_obj = stub.monitor(id)
     if solution_obj['status_terminal'] == True:
       break
-
+    if solution_obj['status'] != status:
+      status = solution_obj['status']
+      print 'Submission status:', colored(status, attrs=['bold'])
   if solution_obj['status'] == 'compilation_error':
     print 'Submission status:', colored('compilation_error', 'red', attrs=['dark'])
     print base64.b64decode(solution_obj['compiler_log_b64'])
@@ -158,7 +163,6 @@ def _monitor_solution(stub, id):
     print 'Submission status:', colored('compilation_error', 'magenta', attrs=['dark'])
     print solution_obj['status_description']
   elif solution_obj['status'] == 'ready':
-    print solution_obj
     print 'Submission status:', colored('ready', 'green', attrs=['dark'])
     testsets = solution_obj.get('testsets')
     if testsets is None:
@@ -171,9 +175,11 @@ def _monitor_solution(stub, id):
         TESTS_CONSOLE_TABLE.post(
           testn=test + '.',
           verdict=_colored_verdict(tests[test]['verdict']),
+          time=tests[test]['runtime'].get('time') + 's',
+          mem=tests[test]['runtime'].get('max-rss') + 'kb',
           comment=tests[test]['comment']
         )
-        sleep(0.3)
+        sleep(0.2)
   else:
     print ('Unknown status: %s' % solution_obj['status'])
 
@@ -207,6 +213,7 @@ def subcmd_run(args, stub):
   if _.d:
     print id
   else:
+    print 'Submitting solution..'
     _monitor_solution(stub, id)
 
 
