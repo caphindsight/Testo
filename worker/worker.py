@@ -37,7 +37,7 @@ def main():
                 {'status': 'running' if success else 'compilation_error',
                  'compiler_log_b64': base64.b64encode(compiler_log)}})
         if compilation_resulted_in_error:
-          return
+          continue
 
         def report_cb(testset, test, result):
           col_solutions.update_one({'solution': solution},
