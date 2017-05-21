@@ -11,7 +11,7 @@ def _run_test(sandbox, test_obj, checker, limits):
   sandbox.clean('ians')
   with sandbox.open_prepared_file('ienv/input.txt', FileMod.INPUT) as input_stream:
     input_stream.write(base64.b64decode(test_obj['input_b64']))
-  with sandbox.open_prepared_file('ienv/answer.txt', FileMod.INPUT) as answer_stream:
+  with sandbox.open_prepared_file('ians/answer.txt', FileMod.INPUT) as answer_stream:
     answer_stream.write(base64.b64decode(test_obj['answer_b64']))
   prepared_input = sandbox.get_file('ienv/input.txt')
   prepared_answer = sandbox.get_file('ians/answer.txt')
