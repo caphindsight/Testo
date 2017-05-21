@@ -35,7 +35,6 @@ def main():
           col_solutions.update_one({'solution': solution},
               {'$set':
                 {'status': 'running' if success else 'compilation_error',
-                 'status_terminal': True,
                  'compiler_log_b64': base64.b64encode(compiler_log)}})
         def report_cb(testset, test, result):
           col_solutions.update_one({'solution': solution},

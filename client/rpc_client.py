@@ -3,7 +3,7 @@ import base64
 import os
 import sys
 from termcolor import *
-import time
+from time import sleep
 import yaml
 import xmlrpclib
 
@@ -39,8 +39,8 @@ def _basename_noext(path):
 
 
 def _ext(path):
-  bm = os.path.basename(path)
-  return ps.path.splitext(bn)[1]
+  bn = os.path.basename(path)
+  return os.path.splitext(bn)[1]
 
 
 def _detect_language(ext):
@@ -118,78 +118,62 @@ TESTS_CONSOLE_TABLE = ConsoleTable([
 
 def _colored_verdict(verdict):
   if verdict == 'ok':
-    return colored('OK', 'green')
+    return colored('OK', 'green', attrs=['bold'])
   elif verdict == 'wrong_answer':
-    return colored('WA', 'red')
+    return colored('WA', 'red', attrs=['bold'])
   elif verdict == 'presentation_error':
-    return colored('PE', 'cyan')
+    return colored('PE', 'cyan', attrs=['bold'])
   elif verdict == 'idle':
-    return colored('IL', 'blue')
+    return colored('IL', 'blue', attrs=['bold'])
   elif verdict == 'crash' or verdict == 'crashed':
-    return colored('CR', 'yellow')
+    return colored('CR', 'yellow', attrs=['bold'])
   elif verdict == 'security_violation':
-    return colored('SV', 'yellow')
+    return colored('SV', 'yellow', attrs=['bold'])
   elif verdict == 'timeouted':
-    return colored('TO', 'blue')
+    return colored('TO', 'blue', attrs=['bold'])
   elif verdict == 'out_of_memory':
-    return colored('OM', 'blue')
+    return colored('OM', 'blue', attrs=['bold'])
   elif verdict == 'out_of_disk':
-    return colored('OD', 'blue')
+    return colored('OD', 'blue', attrs=['bold'])
   elif verdict == 'out_of_stack':
-    return colored('OS', 'blue')
+    return colored('OS', 'blue', attrs=['bold'])
   elif verdict == 'generator_failure':
-    return colored('GF', 'magenta')
+    return colored('GF', 'magenta', attrs=['bold'])
   elif verdict == 'checker_failure':
-    return colored('CF', 'magenta')
+    return colored('CF', 'magenta', attrs=['bold'])
   else:
-    return '??'
-
-
-def _report_tests(tests):
-  for test in sorted(list(tests)):
-    TESTS_CONSOLE_TABLE.post(
-      testn=test + '.',
-      verdict=_colored_verdict(tests[test]['verdict']),
-      comment=tests[test]['comment']
-    )
-    time.sleep(0.3)
-
-
-def _report_testset(testset):
-  print
-  print 'Tests from testset:', colored(testset, attrs=['underline'])
+    return colored('??', attrs=['bold'])
 
 
 def _monitor_solution(stub, id):
-  terminate = False
-  reported_testsets = dict()
-  current_testset = ''
-  while not terminate:
+  while True:
     solution_obj = stub.monitor(id)
-    terminate = solution_obj['status_terminal']
-    new_testsets = dict()
-    for testset in solution_obj['testsets']:
-      if not reported_testsets.has_key(testset):
-        reported_testsets[testset] = dict()
-      testset_obj = solution_obj['testsets'][testset]
-      for test in testset_obj:
-        if not reported_testsets[testset].has_key(test):
-          if not new_testsets.has_key(testset):
-            new_testsets[testset] = dict()
-          new_testsets[testset][test] = new_testsets[testset][test]
-    if current_testset in new_testsets:
-      _report_tests(new_testsets[current_testset])
-      del new_testsets[current_testset]
-    for testset in new_testsets:
-      _report_testset(testset)
-      _report_tests(new_testsets[testset])
-      current_testset = testset
-    if terminate:
-      if solution_obj['status'] == 'compilation_error':
-        print 'Solution status:', colored('compilation error', 'red')
-        print base64.b64decode(solution_obj['compiler_log_b64'])
-      elif solution_obj['status'] == 'failed':
-        print 'Testing system error:', solution_obj['status_description']
+    if solution_obj['status_terminal'] == True:
+      break
+
+  if solution_obj['status'] == 'compilation_error':
+    print 'Submission status:', colored('compilation_error', 'red', attrs=['dark'])
+    print base64.b64_ecode(solution_obj['compiler_log_b64'])
+  elif solution_obj['status'] == 'failed':
+    print 'Submission status:', colored('compilation_error', 'magenta', attrs=['dark'])
+    print solution_obj['status_description']
+  elif solution_obj['status'] == 'ready':
+    print 'Submission status:', colored('ready', 'green', attrs['dark'])
+    testsets = solution_obj.get('testsets')
+    if testsets is None:
+      testsets = sorted(list(solution_obj['results']))
+    for testset in testsets:
+      print
+      print 'Tests from testset:', colored(testset, attrs=['underline'])
+      for test in sorted(list(tests)):
+        TESTS_CONSOLE_TABLE.post(
+          testn=test + '.',
+          verdict=_colored_verdict(tests[test]['verdict']),
+          comment=tests[test]['comment']
+        )
+        sleep(0.3)
+  else:
+    print ('Unknown status: %s' % solution_obj['status'])
 
 
 def subcmd_run(args, stub):
@@ -229,7 +213,7 @@ def main():
       os.path.dirname(os.path.realpath(__file__)),
       'testo_client.yml')
   config = yaml.load(open(config_file, 'r').read())
-  stub = xmlrpclib.ServerProxy(config['server_addr'])
+  stub = xmlrpclib.ServerProxy(config['server_addr'], allow_none=True)
   args = sys.argv
   progname = args.pop(0)
   if len(args) == 0:
