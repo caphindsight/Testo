@@ -153,7 +153,7 @@ class Sandbox:
     return internal_file_path
 
   def open_prepared_file(self, relative_path, mod=FileMod.INPUT):
-    internal_file_path = prepare_file(self, relative_path, mod)
+    internal_file_path = self.prepare_file(relative_path, mod)
     return open(internal_file_path, 'w')
 
   def copy_file(self, origin, relative_path, mod=FileMod.INPUT):

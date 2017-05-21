@@ -34,9 +34,13 @@ def main():
         box = sandbox.Sandbox(config['sandbox']['box_id'])
         try:
           runner.run_tests(box, problem_obj, solution_obj, report_cb)
+          col_solutions.update_one({'solution': solution},
+              {'$set': {'status': 'ready'}})
         except Exception, e:
           col_solutions.update_one({'solution': solution},
               {'$set': {'status': 'failed', 'status_description': str(e)}})
+          if config['debug']:
+            raise
       else:
         time.sleep(1.0)
   except KeyboardInterrupt:

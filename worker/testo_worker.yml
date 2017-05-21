@@ -2,6 +2,8 @@ mongo:
   address: 'mongodb://localhost:32768/'
   database: 'testo'
 
+debug: true
+
 sandbox:
   box_id: 4
 

@@ -53,7 +53,7 @@ def run_tests(sandbox, problem_obj, solution_obj, report_cb):
   sandbox.mount('iout', MountOpts.READ_AND_WRITE)
 
   with sandbox.open_prepared_file('ienv/program', FileMod.EXECUTABLE) as program_stream:
-    program_stream.write(base64.b64_decode(solution_obj['source_code_b64']))
+    program_stream.write(base64.b64decode(solution_obj['source_code_b64']))
 
   limits = Limits(
     time_limit=problem_obj['limits'].get('time_limit'),
