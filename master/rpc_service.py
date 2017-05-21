@@ -1,4 +1,9 @@
 import pymongo
+import random
+
+
+def _rand_id():
+  return str(random.getrandbits(256))
 
 
 def _doc_body(doc):
@@ -9,8 +14,9 @@ def _doc_body(doc):
 class RpcService:
   def __init__(self, db):
     self.db = db
-    self.col_problems = db['problems']
     self.col_contests = db['contests']
+    self.col_problems = db['problems']
+    self.col_solutions = db['solutions']
 
   def problem_list(self):
     result = []
@@ -32,6 +38,20 @@ class RpcService:
     res = self.col_problems.delete_one({'problem': problem})
     if res.deleted_count != 1:
       raise Exception('Found %s problems matching the drop request' % res.deleted_count)
+
+  def run(self, args):
+    id = _rand_id()
+    solution_obj = {
+      'language': args['language'],
+      'problem': args['problem'],
+      'status': 'queued',
+      'solution': id,
+      'source_code_b64': args['source_code_b64'],
+      'testsets': args['testsets'],
+      'user': 'default_user'
+    }
+    self.col_solutions.insert_one(solution_obj)
+    return id
 
   def contest_list(self):
     result = []

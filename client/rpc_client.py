@@ -1,4 +1,5 @@
 import argparse
+import base64
 import sys
 from termcolor import *
 import yaml
@@ -11,6 +12,7 @@ import problem_utils
 COMMANDS = {
   'help': 'Show this help message.',
   'problem': 'Manage problem database.',
+  'run': 'Run solution against prepared tests.'
 }
 
 def _parser(command):
@@ -80,6 +82,28 @@ def subcmd_problem(args, stub):
   elif _.drop:
     if _.p is None: _fail('-p must be specified.')
     stub.problem_drop(_.p)
+
+
+def subcmd_run(args, stub):
+  parser = _parser('run')
+  parser.add_argument('-p', metavar='PROBLEM', type=str,
+      help='Problem name, can also be inferred from the source code file name.')
+  parser.add_argument('-t', metavar='TESTSETS', type=str,
+      help='Testsets to run on. Comma-separated. By default covers all testsets.')
+  parser.add_argument('-l', metavar='LANG', type=str,
+      help='Programming language in which your program is written.')
+  parser.add_argument('solution', metavar='SOLUTION',
+      help='Solution source code file.')
+  _ = parser.parse_args(args)
+
+  source_code_b64 = base64.b64encode(open(_.solution, 'r').read())
+  id = stub.run({
+    'language': _.l,
+    'problem': _.p,
+    'source_code_b64': source_code_b64,
+    'testsets': _.t
+  })
+  print id
 
 def main():
   config_file = os.path.join(

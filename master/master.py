@@ -4,7 +4,7 @@ import xmlrpclib
 import yaml
 from SimpleXMLRPCServer import SimpleXMLRPCServer
 
-from service import RpcService
+from rpc_service import RpcService
 
 
 def main():
