@@ -158,13 +158,14 @@ def _monitor_solution(stub, id):
     print 'Submission status:', colored('compilation_error', 'magenta', attrs=['dark'])
     print solution_obj['status_description']
   elif solution_obj['status'] == 'ready':
-    print 'Submission status:', colored('ready', 'green', attrs['dark'])
+    print 'Submission status:', colored('ready', 'green', attrs=['dark'])
     testsets = solution_obj.get('testsets')
     if testsets is None:
       testsets = sorted(list(solution_obj['results']))
     for testset in testsets:
       print
       print 'Tests from testset:', colored(testset, attrs=['underline'])
+      tests = solution_obj['results'][testset]
       for test in sorted(list(tests)):
         TESTS_CONSOLE_TABLE.post(
           testn=test + '.',
