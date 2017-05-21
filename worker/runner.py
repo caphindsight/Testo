@@ -59,7 +59,7 @@ def run_tests(sandbox, problem_obj, solution_obj, compiler_cb, report_cb):
     program_stream.write(base64.b64decode(solution_obj['source_code_b64']))
 
   compiler_res = compiler_utils.compile(sandbox,
-      sandbox.get_file('ienv/program' + ext), sandbox.get_file('ienv/program'))
+      sandbox.get_file('ienv/program' + ext), sandbox.get_file('ienv/program'), language)
   compiler_cb(compiler_res.success, compiler_res.compiler_log)
   if not compiler_res.success:
     return
