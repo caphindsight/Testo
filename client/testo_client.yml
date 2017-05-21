@@ -1,1 +1,2 @@
-server_addr: "http://localhost:30730"
+# server_addr: "http://localhost:30730"
+server_addr: "http://solenodonus.com:30730"

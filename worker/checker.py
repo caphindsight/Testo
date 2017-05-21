@@ -1,3 +1,8 @@
+class CheckerError(Exception):
+  def __init__(self, msg):
+    super(CheckerError, self).__init__(msg)
+
+
 class Checker:
   def check(self, input_file, output_file, answer_file):
     raise CheckerError('Pure virtual method call: Checker.check')

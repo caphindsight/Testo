@@ -18,7 +18,7 @@ def main():
 
   service = RpcService(mongo_db)
   server = SimpleXMLRPCServer((config['master_rpc']['addr'], config['master_rpc']['port']),
-      logRequests=config['master_rpc']['log_requests'])
+      logRequests=config['master_rpc']['log_requests'], allow_none=True)
   server.register_instance(service)
   try:
     print ('Testo master RPC server is listening on http://%s:%s/' %

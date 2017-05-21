@@ -15,7 +15,7 @@ class MountOpts:
 class FileMod:
   INPUT = 0644
   OUTPUT = 0666
-  EXECUTABLE = 0555
+  EXECUTABLE = 0755
 
 
 class MountPoint:

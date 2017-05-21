@@ -7,7 +7,7 @@ RUN \
     git python python-pip make && \
   pip install --upgrade pip && \
   pip install \
-    termcolor pymongo pyyaml && \
+    pymongo pyyaml && \
   git clone https://github.com/caphindsight/isolate && \
   cd isolate && \
   make isolate && make install
