@@ -153,7 +153,7 @@ def _monitor_solution(stub, id):
 
   if solution_obj['status'] == 'compilation_error':
     print 'Submission status:', colored('compilation_error', 'red', attrs=['dark'])
-    print base64.b64_ecode(solution_obj['compiler_log_b64'])
+    print base64.b64decode(solution_obj['compiler_log_b64'])
   elif solution_obj['status'] == 'failed':
     print 'Submission status:', colored('compilation_error', 'magenta', attrs=['dark'])
     print solution_obj['status_description']
