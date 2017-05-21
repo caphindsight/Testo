@@ -1,4 +1,5 @@
 from subprocess import Popen, PIPE
+from time import sleep
 
 
 class Language:
@@ -19,9 +20,17 @@ class CompilationRes:
 
 
 def _run_compiler(*cmdline):
-  p = Popen([str(i) for i in cmdline], stdin=PIPE, stdout=PIPE, stderr=PIPE,
-      timeout=5)  # 5 seconds timeout for all compilers
-  p.wait()
+  p = Popen([str(i) for i in cmdline], stdin=PIPE, stdout=PIPE, stderr=PIPE)
+  timeout = 5.0
+  timeout_splitting = 50
+  timeout_dt = timeout / timeout_splitting
+  for i in range(timeout_splitting):
+    sleep(timeout_dt)
+    if p.poll() is not None:
+      break
+  if p.poll() is None:
+    p.kill()
+    return CompilationRes(False, 'Compiler timed out')
   compiler_log = p.stderr.read()
   if compiler_log == '':
     compiler_log = p.stdout.read()
