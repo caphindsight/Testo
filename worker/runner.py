@@ -47,7 +47,7 @@ def _run_test(sandbox, test_obj, checker, limits):
     }
 
 
-def run_tests(sandbox, problem_obj, solution_obj, compiler_cb, report_cb):
+def run_tests(sandbox, problem_obj, solution_obj, compiler_cb, report_cb, success_cb):
   sandbox.create()
   try:
     logging.info('Running tests for %s (problem %s, user %s)' %
@@ -90,5 +90,7 @@ def run_tests(sandbox, problem_obj, solution_obj, compiler_cb, report_cb):
       for test_obj in testset_obj['tests']:
         test_res = _run_test(sandbox, test_obj, checker, limits)
         report_cb(testset, test_obj['test'], test_res)
+
+    success_cb()
   finally:
     sandbox.delete()
