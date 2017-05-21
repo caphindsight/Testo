@@ -43,7 +43,7 @@ def main():
           def report_cb(testset, test, result):
             col_solutions.update_one({'solution': solution},
                 {'$set': {'results.' + testset + '.' + test: result}})
-          runner.run_tests(box, problem_obj, solution_obj, compiler_cb, report_cb, success_cb)
+          runner.run_tests(box, problem_obj, solution_obj, compiler_cb, report_cb)
           if compilation_succeeded:
             col_solutions.update_one({'solution': solution},
                 {'$set': {'status': 'ready', 'status_terminal': True}})
