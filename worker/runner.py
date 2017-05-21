@@ -58,8 +58,8 @@ def run_tests(sandbox, problem_obj, solution_obj, compiler_cb, report_cb):
   with sandbox.open_prepared_file('ienv/program' + ext, FileMod.INPUT) as program_stream:
     program_stream.write(base64.b64decode(solution_obj['source_code_b64']))
 
-  compiler_res = compiler_utils.compile(sandbox, sandbox.get('ienv/program' + ext),
-      sandbox.get('ienv/program'))
+  compiler_res = compiler_utils.compile(sandbox,
+      sandbox.get_file('ienv/program' + ext), sandbox.get_file('ienv/program'))
   compiler_cb(compiler_res.success, compiler_res.compiler_log)
   if not compiler_res.success:
     return
