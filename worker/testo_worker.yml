@@ -1,11 +1,11 @@
 mongo:
-  address: 'mongodb://localhost:32768/'
+  address: 'mongodb://mongo:27017/'
   database: 'testo'
 
 debug: true
 
 sandbox:
-  box_id: 4
+  box_id: 1
 
 queue:
   max_len: 100

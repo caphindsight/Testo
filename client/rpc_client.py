@@ -1,6 +1,8 @@
 import argparse
 import base64
+import datetime
 import os
+import random
 import sys
 from termcolor import *
 from time import sleep
@@ -13,8 +15,15 @@ import problem_utils
 
 COMMANDS = {
   'help': 'Show this help message.',
-  'problem': 'Manage problem database.',
-  'run': 'Run solution against prepared tests.',
+
+  'browse': 'Browse database collection.',
+  'lookup': 'Lookup object in the database collection.',
+  'insert': 'Insert object in the database collection.',
+  'update': 'Update object in the database collection.',
+  'drop': 'Delete object from the database collection.',
+  'cleanup': 'Clean up old objects in the database collection.',
+
+  'problem': 'Helper command to upload and download problems.'
 }
 
 def _parser(command):
@@ -23,25 +32,20 @@ def _parser(command):
     description=COMMANDS[command]
   )
 
-
 def _fail(message):
   print message
   exit(1)
 
-
 def _abs_path(path):
-  return os.path.join(os.getcwd(), path)
-
+  return os.path.abspath(os.path.join(os.getcwd(), path))
 
 def _basename_noext(path):
   bn = os.path.basename(path)
   return os.path.splitext(bn)[0]
 
-
 def _ext(path):
   bn = os.path.basename(path)
   return os.path.splitext(bn)[1]
-
 
 def _detect_language(ext):
   lang_map = {
@@ -55,8 +59,11 @@ def _detect_language(ext):
     _fail('Unrecognized language extension: %s' % ext)
   return res
 
+def _parse_datetime(unix_time):
+  return datetime.datetime.fromtimestamp(unix_time).strftime('%Y-%m-%d %H:%M:%S')
 
-def subcmd_help(args, stub):
+
+def subcmd_help(args, stub, auth):
   print 'usage: testo COMMAND [ARGS ...]'
   print
   print 'Testo testing system client.'
@@ -70,151 +77,186 @@ def subcmd_help(args, stub):
     commands_table.post(command=' ' + command, description=COMMANDS[command])
 
 
-def subcmd_problem(args, stub):
+def subcmd_browse(args, stub, auth):
+  parser = _parser('browse')
+  parser.add_argument('-f', '-i', '--include', action='append', dest='fields',
+      help='Fields to include in the response, e.g. -f user -f admin ...')
+  parser.add_argument('-w', '--width', type=int, default=0, dest='width',
+      help='Output table width (defaults to terminal width).')
+  parser.add_argument('collection', metavar='COLLECTION', type=str,
+      help='Collection to browse.')
+  _ = parser.parse_args(args)
+  if _.fields is None:
+    _fail('Please provide fields to browse for.')
+  data = stub.db_browse(auth, _.collection, _.fields)
+  table = ConsoleTable([TableCol(field, 10) for field in _.fields])
+  table.fit_width(_.width)
+  fields_dict = dict()
+  for field in _.fields:
+    fields_dict[field] = field
+  table.post_header(**fields_dict)
+  for item in data:
+    if item.has_key('created'):
+      item['created'] = _parse_datetime(item['created'])
+    if item.has_key('last_update'):
+      item['last_update'] = _parse_datetime(item['last_update'])
+    table.post(**item)
+
+
+def subcmd_lookup(args, stub, auth):
+  parser = _parser('lookup')
+  parser.add_argument('-i', '--include', action='append', dest='include_fields',
+      help='Fields to include in the response, e.g. -i user -i admin ...')
+  parser.add_argument('-e', '--exclude', action='append', dest='exclude_fields',
+      help='Fields to exclude from response, e.g. -e token ...')
+  parser.add_argument('collection', metavar='COLLECTION', type=str,
+      help='Collection to lookup from.')
+  parser.add_argument('id', metavar='ID', type=str,
+      help='Object identifier')
+  _ = parser.parse_args(args)
+  projection = _.include_fields
+  data = stub.db_lookup(auth, _.collection, _.id, projection)
+  if _.exclude_fields is None:
+    _.exclude_fields = []
+  for ef in _.exclude_fields:
+    del data[ef]
+  sys.stdout.write(yaml.dump(data, default_flow_style=False))
+
+
+def _parse_kval(val):
+  if val == 'TRUE':
+    val = True
+  elif val == 'FALSE':
+    val = False
+  elif val.startswith('INT_'):
+    val = int(val[4:])
+  elif val.startswith('LIST_'):
+    val = val[5:].split(',')
+  elif val.startswith('RAND_'):
+    n = int(val[5:])
+    val = str(2 ** n + random.getrandbits(n))
+  return val
+
+
+def subcmd_insert(args, stub, auth):
+  parser = _parser('insert')
+  parser.add_argument('--yaml', metavar='DATA_FILE', default='',
+      help='Insert object from yaml data file.')
+  parser.add_argument('-i', '-p', '--property', metavar='NAME:VALUE', action='append', dest='properties',
+      help='Set object property.')
+  parser.add_argument('--rand', action='store_true',
+      help='Use random object identifier.')
+  parser.add_argument('--rm', action='store_true',
+      help='Remove object before inserting on id collision (please consider using update instead).')
+  parser.add_argument('collection', metavar='COLLECTION', type=str,
+      help='Collection to insert into.')
+  parser.add_argument('id', metavar='ID', type=str, default='',
+      help='Object identifier.')
+  _ = parser.parse_args(args)
+  obj = {}
+  if _.yaml != '':
+    obj = yaml.loads(open(_abs_path(_.yaml), 'r').read())
+  if _.properties is None:
+    _.properties = []
+  for prop in _.properties:
+    arr = prop.split(':')
+    key = arr[0]
+    val = ':'.join(arr[1:])
+    obj[key] = _parse_kval(val)
+  if _.rand:
+    stub.db_insert_with_random_id(auth, _.collection, obj)
+  else:
+    if _.id == '':
+      _fail('Please do one of the following:\n  Provide the object identifier.\n  Enable the --rand flag to generate object id at runtime')
+    if _.rm:
+      try:
+        stub.db_drop(auth, _.collection, _.id)
+      except:
+        pass
+    stub.db_insert(auth, _.collection, _.id, obj)
+
+
+def subcmd_update(args, stub, auth):
+  parser = _parser('update')
+  parser.add_argument('-i', '-p', '--property', metavar='NAME:VALUE', action='append', dest='properties',
+      help='Set object property.')
+  parser.add_argument('collection', metavar='COLLECTION', type=str,
+      help='Collection to update.')
+  parser.add_argument('id', metavar='ID', type=str, default='',
+      help='Object identifier.')
+  _ = parser.parse_args(args)
+  updates = {}
+  if _.properties is None:
+    _fail('Nothing to update.')
+  for prop in _.properties:
+    arr = prop.split(':')
+    key = arr[0]
+    val = ':'.join(arr[1:])
+    updates[key] = _parse_kval(val)
+  stub.db_update(auth, _.collection, _.id, updates)
+
+
+def subcmd_drop(args, stub, auth):
+  parser = _parser('drop')
+  parser.add_argument('collection', metavar='COLLECTION', type=str,
+      help='Collection to drop from.')
+  parser.add_argument('id', metavar='ID', type=str, default='',
+      help='Object identifier.')
+  _ = parser.parse_args(args)
+  stub.db_drop(auth, _.collection, _.id)
+
+
+def subcmd_cleanup(args, stub, auth):
+  parser = _parser('cleanup')
+  parser.add_argument('--secs', metavar='SECS', type=float, default=0,
+      help='Seconds until expired.')
+  parser.add_argument('--mins', metavar='SECS', type=float, default=0,
+      help='Minutes until expired.')
+  parser.add_argument('--hrs', metavar='SECS', type=float, default=0,
+      help='Hours until expired.')
+  parser.add_argument('--days', metavar='SECS', type=float, default=0,
+      help='Days until expired.')
+  parser.add_argument('collection', metavar='COLLECTION', type=str,
+      help='Collection to clean up.')
+  _ = parser.parse_args(args)
+  timespan_secs = 0
+  if _.secs > 0:
+    timespan_secs += int(_.secs)
+  if _.mins > 0:
+    timespan_secs += int(_.mins * 60)
+  if _.hrs > 0:
+    timespan_secs += int(_.hrs * 60 * 60)
+  if _.days > 0:
+    timespan_secs += int(_.days * 60 * 60 * 24)
+  if timespan_secs == 0:
+    _fail('Please provide one of the followind: --secs, --mins, --hrs, --days')
+  cleanup_res = stub.db_cleanup(auth, _.collection, timespan_secs)
+  print 'Cleaned up objects:', cleanup_res['deleted_count']
+
+
+def subcmd_problem(args, stub, auth):
   parser = _parser('problem')
-  parser.add_argument('--list', action='store_true',
-      help='List existing problems.')
-  parser.add_argument('--push', action='store_true',
-      help='Push a problem from local directory to the database.')
-  parser.add_argument('--pull', action='store_true',
-      help='Pull a problem from the database to a local directory.')
-  parser.add_argument('--drop', action='store_true',
-      help='Drop a problem from the database.')
-  parser.add_argument('-p', metavar='PROBLEM', type=str,
-      help='Problem name, if applicable.')
-  parser.add_argument('--dir', metavar='DIRECTORY', type=str,
-      help='Local directory to save/load problem data, if applicable.')
+  parser.add_argument('--upload', action='store_true',
+      help='Upload a problem from local directory to the database.')
+  parser.add_argument('--download', action='store_true',
+      help='Download a problem from the database to a local directory.')
+  parser.add_argument('dir', metavar='DIR', type=str,
+      help='Local directory path.')
   _ = parser.parse_args(args)
-  if _.list + _.push + _.pull + _.drop != 1:
-    _fail('Exactly one action from (--list, --push, --pull, --drop) has to be specified')
-  if _.list:
-    table = ConsoleTable([
-      TableCol('problem', 15),
-      TableCol('title')
-    ])
-    problems = stub.problem_list()
-    for problem in problems:
-      table.post(problem=problem['problem'], title=problem['title'])
-  elif _.push:
-    if _.dir is None: _fail('--dir must be specified.')
-    obj = problem_utils.load_problem(_abs_path(_.dir))
-    stub.problem_push(obj)
-  elif _.pull:
-    if _.p is None: _fail('-p must be specified.')
-    if _.dir is None: _fail('--dir must be specified.')
-    obj = stub.problem_pull(_.p)
-    problem_utils.save_problem(obj, _abs_path(_.dir))
-  elif _.drop:
-    if _.p is None: _fail('-p must be specified.')
-    stub.problem_drop(_.p)
-
-
-TESTS_CONSOLE_TABLE = ConsoleTable([
-  TableCol('testn', 4, AlignMode.RIGHT),
-  TableCol('verdict'),
-  TableCol('time', 7),
-  TableCol('mem', 9),
-  TableCol('comment', 20),
-])
-
-
-def _colored_verdict(verdict):
-  if verdict == 'ok':
-    return colored('OK', 'green', attrs=['bold'])
-  elif verdict == 'wrong_answer':
-    return colored('WA', 'red', attrs=['bold'])
-  elif verdict == 'presentation_error':
-    return colored('PE', 'cyan', attrs=['bold'])
-  elif verdict == 'idle':
-    return colored('IL', 'blue', attrs=['bold'])
-  elif verdict == 'crash' or verdict == 'crashed':
-    return colored('CR', 'yellow', attrs=['bold'])
-  elif verdict == 'security_violation':
-    return colored('SV', 'yellow', attrs=['bold'])
-  elif verdict == 'timeouted':
-    return colored('TO', 'blue', attrs=['bold'])
-  elif verdict == 'out_of_memory':
-    return colored('OM', 'blue', attrs=['bold'])
-  elif verdict == 'out_of_disk':
-    return colored('OD', 'blue', attrs=['bold'])
-  elif verdict == 'out_of_stack':
-    return colored('OS', 'blue', attrs=['bold'])
-  elif verdict == 'generator_failure':
-    return colored('GF', 'magenta', attrs=['bold'])
-  elif verdict == 'checker_failure':
-    return colored('CF', 'magenta', attrs=['bold'])
-  else:
-    return colored('??', attrs=['bold'])
-
-
-def _monitor_solution(stub, id):
-  status = ''
-  while True:
-    solution_obj = stub.monitor(id)
-    if solution_obj['status_terminal'] == True:
-      break
-    if solution_obj['status'] != status:
-      status = solution_obj['status']
-      print 'Submission status:', colored(status, attrs=['bold'])
-  if solution_obj['status'] == 'compilation_error':
-    print 'Submission status:', colored('compilation_error', 'red', attrs=['dark'])
-    print base64.b64decode(solution_obj['compiler_log_b64'])
-  elif solution_obj['status'] == 'failed':
-    print 'Submission status:', colored('compilation_error', 'magenta', attrs=['dark'])
-    print solution_obj['status_description']
-  elif solution_obj['status'] == 'ready':
-    print 'Submission status:', colored('ready', 'green', attrs=['dark'])
-    testsets = solution_obj.get('testsets')
-    if testsets is None:
-      testsets = sorted(list(solution_obj['results']))
-    for testset in testsets:
-      print
-      print 'Tests from testset:', colored(testset, attrs=['underline'])
-      tests = solution_obj['results'][testset]
-      for test in sorted(list(tests)):
-        TESTS_CONSOLE_TABLE.post(
-          testn=test + '.',
-          verdict=_colored_verdict(tests[test]['verdict']),
-          time=tests[test]['runtime'].get('time') + 's',
-          mem=tests[test]['runtime'].get('max-rss') + 'kb',
-          comment=tests[test]['comment']
-        )
-        sleep(0.2)
-  else:
-    print ('Unknown status: %s' % solution_obj['status'])
-
-
-def subcmd_run(args, stub):
-  parser = _parser('run')
-  parser.add_argument('-p', metavar='PROBLEM', type=str,
-      help='Problem name, can also be inferred from the source code file name.')
-  parser.add_argument('-t', metavar='TESTSETS', type=str,
-      help='Testsets to run on. Comma-separated. By default covers all testsets.')
-  parser.add_argument('-l', metavar='LANG', type=str,
-      help='Programming language in which your program is written.')
-  parser.add_argument('solution', metavar='SOLUTION',
-      help='Solution source code file.')
-  parser.add_argument('-d', action='store_true',
-      help='Detached mode: only print the submission id and exit.')
-  _ = parser.parse_args(args)
-
-  solution = _abs_path(_.solution)
-  problem = _.p if _.p is not None else _basename_noext(solution)
-  language = _.l if _.l is not None else _detect_language(_ext(solution))
-  source_code_b64 = base64.b64encode(open(solution, 'r').read())
-  testsets = _.t.split(',') if _.t is not None else None
-  id = stub.run({
-    'language': language,
-    'problem': problem,
-    'source_code_b64': source_code_b64,
-    'testsets': testsets
-  })
-
-  if _.d:
-    print id
-  else:
-    print 'Submitting solution..'
-    _monitor_solution(stub, id)
+  directory = _abs_path(_.dir)
+  problem_name = os.path.basename(directory)
+  if _.upload + _.download != 1:
+    _fail('Exactly one action from (--push, --pull) has to be specified')
+  if _.upload:
+    obj = problem_utils.load_problem(directory)
+    try:
+      stub.db_drop(auth, 'problems', problem_name)
+    except:
+      pass
+    stub.db_insert(auth, 'problems', problem_name, obj)
+  elif _.download:
+    obj = stub.db_lookup(auth, 'problems', problem_name, None)
+    problem_utils.save_problem(obj, directory)
 
 
 def main():
@@ -224,17 +266,18 @@ def main():
   config = yaml.load(open(config_file, 'r').read())
   stub = xmlrpclib.ServerProxy(config['server_addr'], allow_none=True)
   args = sys.argv
+  auth = config['auth']
   progname = args.pop(0)
   if len(args) == 0:
-    subcmd_help(args, stub)
+    subcmd_help(args, stub, auth)
   else:
     subcmd = args.pop(0)
     func = globals().get('subcmd_' + subcmd)
     if not func:
-      subcmd_help(args, stub)
+      subcmd_help(args, stub, auth)
       exit(1)
     else:
-      func(args, stub)
+      func(args, stub, auth)
 
 if __name__ == '__main__':
   try:

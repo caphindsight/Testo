@@ -1,3 +1,4 @@
+import os
 import sys
 import termcolor
 
@@ -20,6 +21,8 @@ def _align(text, width, mode=AlignMode.LEFT, placeholder=' '):
     k = n - 2
     circumsized = text[:k]
     return circumsized + '..'
+  else:
+    return text
 
 
 class TableCol:
@@ -33,12 +36,33 @@ class ConsoleTable:
   def __init__(self, cols):
     self.cols = cols
 
+  def fit_width(self, cs):
+    if cs == 0:
+      cs = int(os.popen('stty size', 'r').read().split()[1])
+    cs -= 2 * len(self.cols)
+    total_width = sum([col.width for col in self.cols])
+    ratio = float(cs) / float(total_width)
+    for col in self.cols:
+      col.width = int(float(col.width) * ratio)
+
   def post(self, **kw):
     for col in self.cols:
       val = kw.get(col.name)
       if val is None: val = ''
+      val = str(val).replace('\n', '  ')
       if col.width is not None:
         val = _align(val, col.width, col.align_mode)
       sys.stdout.write(val + '  ')
+    sys.stdout.write('\n')
+    sys.stdout.flush()
+
+  def post_header(self, **kw):
+    for col in self.cols:
+      val = kw.get(col.name)
+      if val is None: val = ''
+      val = val.replace('\n', '  ')
+      if col.width is not None:
+        val = _align(val, col.width, col.align_mode)
+      sys.stdout.write(termcolor.colored(val + '  ', attrs=['underline']))
     sys.stdout.write('\n')
     sys.stdout.flush()

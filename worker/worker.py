@@ -29,6 +29,11 @@ def main():
         solution = solution_obj['solution']
         problem = solution_obj['problem']
         problem_obj = col_problems.find_one({'problem': problem})
+        if problem_obj is None:
+          col_solutions.update_one({'solution': solution},
+              {'$set': {'status': 'failed', 'status_terminal': True,
+                        'status_description': ('Problem %s not found' % problem)}})
+          continue
         box = sandbox.Sandbox(config['sandbox']['box_id'])
         try:
           def compiler_cb(success, compiler_log):

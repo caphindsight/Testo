@@ -11,7 +11,6 @@ def main():
   config_file = os.path.join(
       os.path.dirname(os.path.realpath(__file__)),
       'testo_master.yml')
-  print config_file
   config = yaml.load(open(config_file, 'r').read())
   mongo_client = pymongo.MongoClient(config['mongo']['address'])
   mongo_db = mongo_client[config['mongo']['database']]

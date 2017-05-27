@@ -1,4 +1,5 @@
 mongo:
+#  address: 'mongodb://mongo:27017/'
   address: 'mongodb://localhost:32768/'
   database: 'testo'
 
@@ -6,6 +7,3 @@ master_rpc:
   addr: '0.0.0.0'
   port: 30730
   log_requests: true
-
-worker_pool:
-  - 'http://localhost:30600'

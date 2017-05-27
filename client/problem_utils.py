@@ -38,9 +38,7 @@ def load_problem(directory):
   return obj
 
 
-def save_problem(obj, parent_dir):
-  problem_dir = os.path.join(parent_dir, obj['problem'])
-  assert os.path.isdir(parent_dir), 'Directory not found: %s' % parent_dir
+def save_problem(obj, problem_dir):
   assert not os.path.exists(problem_dir), 'Directory already exists: %s' % problem_dir
   os.makedirs(problem_dir)
   for testset in obj['testsets']:

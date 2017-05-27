@@ -6,6 +6,21 @@ import compiler_utils
 from sandbox import *
 
 
+VERDICTS_BY_STATUSES = {
+  'TO': 'timeouted',
+  'RE': 'runtime_error',
+  'SG': 'segfaulted',
+}
+
+
+def _verdict_by_status(status):
+  res = VERDICTS_BY_STATUSES.get(status)
+  if res is None:
+    return 'crashed'
+  else:
+    return res
+
+
 def _run_test(sandbox, test_obj, checker, limits):
   # Preparing test
   sandbox.clean('iout')
@@ -28,7 +43,7 @@ def _run_test(sandbox, test_obj, checker, limits):
   run_res = sandbox.run('/ienv/program', redirects, limits)
   if run_res.return_code != 0:
     return {
-      'verdict': 'crashed',
+      'verdict': _verdict_by_status(run_res.meta.get('status')),
       'runtime': run_res.meta,
       'comment': run_res.isolate_stderr,
     }

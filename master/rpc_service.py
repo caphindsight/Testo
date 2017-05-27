@@ -1,62 +1,67 @@
 import pymongo
 import random
 
+from manager import *
+from users_manager import *
 
-def _rand_id():
-  return str(random.getrandbits(256))
 
-
-def _doc_body(doc):
-  del doc['_id']
-  return doc
+class UnsupportedCollectionException(Exception):
+  def __init__(self, collection):
+    super(UnsupportedCollectionException, self).__init__(
+        'Unsupported collection: \'%s\'' % collection)
+    self.collection = collection
 
 
 class RpcService:
   def __init__(self, db):
     self.db = db
-    self.col_contests = db['contests']
-    self.col_problems = db['problems']
-    self.col_solutions = db['solutions']
+    self.users = UsersManager(db['users'])
+    self.managers = {'users': self.users}
+    self.problems = self._manager('problems', 'problem')
+    self.solutions = self._manager('solutions', 'solution')
 
-  def problem_list(self):
-    result = []
-    for problem in self.col_problems.find():
-      result.append({
-        'problem': problem['problem'],
-        'title': problem['title']
-      })
-    return result
+  def _manager(self, collection_name, id_field):
+    manager = Manager(self.db[collection_name], id_field)
+    self.managers[collection_name] = manager
+    return manager
 
-  def problem_pull(self, problem):
-    return _doc_body(self.col_problems.find_one({'problem': problem}))
+  def _get_manager(self, collection):
+    manager = self.managers.get(collection)
+    if manager is None:
+      raise UnsupportedCollectionException(collection)
+    return manager
 
-  def problem_push(self, problem_obj):
-    self.col_problems.find_one_and_update(
-        {'problem': problem_obj['problem']}, {'$set': problem_obj}, upsert=True)
+  def db_browse(self, auth, collection, projection):
+    self.users.authorize_admin(auth['user'], auth['token'])
+    manager = self._get_manager(collection)
+    return manager.browse(projection)
 
-  def problem_drop(self, problem):
-    res = self.col_problems.delete_one({'problem': problem})
-    if res.deleted_count != 1:
-      raise Exception('Found %s problems matching the drop request' % res.deleted_count)
+  def db_lookup(self, auth, collection, id, projection):
+    self.users.authorize_admin(auth['user'], auth['token'])
+    manager = self._get_manager(collection)
+    return manager.lookup(id, projection)
 
-  def run(self, solution_obj):
-    id = _rand_id()
-    solution_doc = {
-      'language': solution_obj['language'],
-      'problem': solution_obj['problem'],
-      'status': 'queued',
-      'status_terminal': False,
-      'solution': id,
-      'source_code_b64': solution_obj['source_code_b64'],
-      'testsets': solution_obj['testsets'],
-      'user': 'default_user'
-    }
-    self.col_solutions.insert_one(solution_doc)
-    return id
+  def db_insert(self, auth, collection, id, obj):
+    self.users.authorize_admin(auth['user'], auth['token'])
+    manager = self._get_manager(collection)
+    return manager.insert(id, obj)
 
-  def monitor(self, solution):
-    solution_obj = self.col_solutions.find_one({'solution': solution})
-    if solution_obj is None:
-      return None
-    else:
-      return _doc_body(solution_obj)
+  def db_insert_with_random_id(self, auth, collection, obj):
+    self.users.authorize_admin(auth['user'], auth['token'])
+    manager = self._get_manager(collection)
+    return manager.insert_with_random_id(obj)
+
+  def db_update(self, auth, collection, id, updates, upsert=False):
+    self.users.authorize_admin(auth['user'], auth['token'])
+    manager = self._get_manager(collection)
+    return manager.update(id, updates, upsert=upsert)
+
+  def db_drop(self, auth, collection, id):
+    self.users.authorize_admin(auth['user'], auth['token'])
+    manager = self._get_manager(collection)
+    return manager.drop(id)
+
+  def db_cleanup(self, auth, collection, timespan_secs):
+    self.users.authorize_admin(auth['user'], auth['token'])
+    manager = self._get_manager(collection)
+    return manager.cleanup(timespan_secs)

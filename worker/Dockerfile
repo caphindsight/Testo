@@ -10,8 +10,9 @@ RUN \
     pymongo pyyaml && \
   git clone https://github.com/caphindsight/isolate && \
   cd isolate && \
-  make isolate && make install
+  make isolate && make install && \
+  apt-get install gcc g++
 
-COPY . /worker
-WORKDIR /worker
+COPY . /testo_worker
+WORKDIR /testo_worker
 CMD python worker.py
