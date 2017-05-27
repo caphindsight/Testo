@@ -26,8 +26,8 @@ class Manager(object):
     self.collection.create_index(
         [(self.id_field, pymongo.ASCENDING)], unique=True)
 
-  def browse(self, projection=None):
-    cur = self.collection.find({}, projection=projection)
+  def browse(self, query={}, projection=None):
+    cur = self.collection.find(query, projection=projection)
     res = []
     for i in cur:
       obj = i.copy()

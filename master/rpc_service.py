@@ -31,10 +31,10 @@ class RpcService:
       raise UnsupportedCollectionException(collection)
     return manager
 
-  def db_browse(self, auth, collection, projection):
+  def db_browse(self, auth, collection, query, projection):
     self.users.authorize_admin(auth['user'], auth['token'])
     manager = self._get_manager(collection)
-    return manager.browse(projection)
+    return manager.browse(query, projection)
 
   def db_lookup(self, auth, collection, id, projection):
     self.users.authorize_admin(auth['user'], auth['token'])

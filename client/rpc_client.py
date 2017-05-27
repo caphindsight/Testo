@@ -81,6 +81,8 @@ def subcmd_browse(args, stub, auth):
   parser = _parser('browse')
   parser.add_argument('-f', '-i', '--include', action='append', dest='fields',
       help='Fields to include in the response, e.g. -f user -f admin ...')
+  parser.add_argument('-q', '--query', action='append', dest='query',
+      help='Query only specific values, e.g. -q user=user1 ...')
   parser.add_argument('-w', '--width', type=int, default=0, dest='width',
       help='Output table width (defaults to terminal width).')
   parser.add_argument('collection', metavar='COLLECTION', type=str,
@@ -88,7 +90,17 @@ def subcmd_browse(args, stub, auth):
   _ = parser.parse_args(args)
   if _.fields is None:
     _fail('Please provide fields to browse for.')
-  data = stub.db_browse(auth, _.collection, _.fields)
+  if _.query is None:
+    _.query = dict()
+  else:
+    query = dict()
+    for q in _.query:
+      arr = q.split(':')
+      key = arr[0]
+      val = ':'.join(arr[1:])
+      query[key] = _parse_kval(val)
+    _.query = query
+  data = stub.db_browse(auth, _.collection, _.query, _.fields)
   table = ConsoleTable([TableCol(field, 10) for field in _.fields])
   table.fit_width(_.width)
   fields_dict = dict()

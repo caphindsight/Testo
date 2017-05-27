@@ -102,8 +102,18 @@ def run_tests(sandbox, problem_obj, solution_obj, compiler_cb, report_cb, succes
       testset = testset_obj['testset']
       if testset not in testsets:
         continue
+      failed = False
       for test_obj in testset_obj['tests']:
-        test_res = _run_test(sandbox, test_obj, checker, limits)
+        if failed and testset_obj.get('scoring') == 'qualitative':
+          test_res = {
+            'verdict': 'skipped',
+            'runtime': {},
+            'comment': 'test was skipped'
+          }
+        else:
+          test_res = _run_test(sandbox, test_obj, checker, limits)
+          if test_res['verdict'] != 'ok':
+            failed = True
         report_cb(testset, test_obj['test'], test_res)
 
     success_cb()
