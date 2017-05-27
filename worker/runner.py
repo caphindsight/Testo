@@ -62,7 +62,7 @@ def _run_test(sandbox, test_obj, checker, limits):
     }
 
 
-def run_tests(sandbox, problem_obj, solution_obj, compiler_cb, report_cb, success_cb):
+def run_tests(sandbox, problem_obj, solution_obj, compiler_cb, report_cb, testset_cb, success_cb):
   sandbox.create()
   try:
     logging.info('Running tests for %s (problem %s, user %s)' %
@@ -104,7 +104,7 @@ def run_tests(sandbox, problem_obj, solution_obj, compiler_cb, report_cb, succes
         continue
       failed = False
       for test_obj in testset_obj['tests']:
-        if failed and testset_obj.get('scoring') == 'qualitative':
+        if failed and solution_obj.get('scoring') == 'qualitative':
           test_res = {
             'verdict': 'skipped',
             'runtime': {},
@@ -114,7 +114,10 @@ def run_tests(sandbox, problem_obj, solution_obj, compiler_cb, report_cb, succes
           test_res = _run_test(sandbox, test_obj, checker, limits)
           if test_res['verdict'] != 'ok':
             failed = True
+            testset_cb(testset, 'rejected', test_res['verdict'], test_obj['test'])
         report_cb(testset, test_obj['test'], test_res)
+      if not failed:
+        testset_cb(testset, 'accepted')
 
     success_cb()
   finally:

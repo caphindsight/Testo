@@ -45,10 +45,17 @@ def main():
           def report_cb(testset, test, result):
             col_solutions.update_one({'solution': solution},
                 {'$set': {'results.' + testset + '.' + test: result}})
+          def testset_cb(testset, testset_verdict, test_verdict=None, testn=None):
+            col_solutions.update_one({'solution': solution},
+                {'$set': {
+                    'testset_results.' + testset + '.verdict': testset_verdict,
+                    'testset_results.' + testset + '.test_verdict': test_verdict,
+                    'testset_results.' + testset + '.failed_test': testn
+                }})
           def success_cb():
             col_solutions.update_one({'solution': solution},
                 {'$set': {'status': 'ready', 'status_terminal': True}})
-          runner.run_tests(box, problem_obj, solution_obj, compiler_cb, report_cb, success_cb)
+          runner.run_tests(box, problem_obj, solution_obj, compiler_cb, report_cb, testset_cb, success_cb)
         except Exception, e:
           col_solutions.update_one({'solution': solution},
               {'$set': {'status': 'failed', 'status_terminal': True, 'status_description': str(e)}})

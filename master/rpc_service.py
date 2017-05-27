@@ -17,6 +17,7 @@ class RpcService:
     self.db = db
     self.users = UsersManager(db['users'])
     self.managers = {'users': self.users}
+    self.contests = self._manager('contests', 'contest')
     self.problems = self._manager('problems', 'problem')
     self.solutions = self._manager('solutions', 'solution')
 
@@ -65,3 +66,46 @@ class RpcService:
     self.users.authorize_admin(auth['user'], auth['token'])
     manager = self._get_manager(collection)
     return manager.cleanup(timespan_secs)
+
+  def submit(self, auth, contest, task, language, source_code_b64):
+    self.users.authorize(auth['user'], auth['token'])
+    user = auth['user']
+    contest_obj = self.contests.lookup(contest)
+    schedule = contest_obj.get('schedule')
+    now = int(time.time())
+    if schedule is not None:
+      if now < schedule['start']:
+        raise AccessDeniedException('Contest %s starts in %s minutes' % (contest, (schedule['start'] - now) / 60))
+      if now > schedule['finish']:
+        raise AccessDeniedException('Contest %s is finished' % contest)
+    if user not in contest_obj['contestants']:
+      raise AccessDeniedException('User %s doesn\'t have access to contest %s' % (user, contest))
+    if task not in contest_obj['tasks']:
+      raise AccessDeniedException('Unknown task %s' % task)
+    solution_obj = {
+      'user': user,
+      'contest': contest,
+      'task': task,
+      'problem': contest_obj['tasks'][task]['problem'],
+      'testsets': contest_obj['tasks'][task].get('testsets'),
+      'scoring': contest_obj['tasks'][task].get('scoring'),
+      'language': language,
+      'source_code_b64': source_code_b64,
+      'status': 'queued',
+      'status_terminal': False,
+    }
+    id = self.solutions.insert_with_random_id(solution_obj)
+    return {
+      'solution': id
+    }
+
+  def monitor(self, auth, solution):
+    self.users.authorize(auth['user'], auth['token'])
+    user = auth['user']
+    solution_obj = self.solutions.lookup(solution)
+    if solution_obj.get('user') != user:
+      raise AccessDeniedException('Solution %s was submitted by another person' % solution)
+    return solution_obj
+
+  def clock(self, shift_secs):
+    return int(time.time()) + shift_secs

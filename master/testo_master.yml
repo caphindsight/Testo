@@ -1,6 +1,6 @@
 mongo:
-#  address: 'mongodb://mongo:27017/'
-  address: 'mongodb://localhost:32768/'
+  address: 'mongodb://mongo:27017/'
+#  address: 'mongodb://localhost:32768/'
   database: 'testo'
 
 master_rpc:

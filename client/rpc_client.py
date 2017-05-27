@@ -15,6 +15,7 @@ import problem_utils
 
 COMMANDS = {
   'help': 'Show this help message.',
+  'clock': 'Lookup server wall clock.',
 
   'browse': 'Browse database collection.',
   'lookup': 'Lookup object in the database collection.',
@@ -23,7 +24,9 @@ COMMANDS = {
   'drop': 'Delete object from the database collection.',
   'cleanup': 'Clean up old objects in the database collection.',
 
-  'problem': 'Helper command to upload and download problems.'
+  'problem': 'Helper command to upload and download problems.',
+
+  'submit': 'Submit solution for a contest task.',
 }
 
 def _parser(command):
@@ -35,6 +38,13 @@ def _parser(command):
 def _fail(message):
   print message
   exit(1)
+
+def _concat(a, b):
+  if a is None:
+    return None
+  if b is None:
+    return a
+  return a + b
 
 def _abs_path(path):
   return os.path.abspath(os.path.join(os.getcwd(), path))
@@ -77,12 +87,62 @@ def subcmd_help(args, stub, auth):
     commands_table.post(command=' ' + command, description=COMMANDS[command])
 
 
+def subcmd_clock(args, stub, auth):
+  parser = _parser('clock')
+  parser.add_argument('--secs', metavar='SECS', type=float, default=0,
+      help='Seconds shift.')
+  parser.add_argument('--mins', metavar='SECS', type=float, default=0,
+      help='Minutes shift.')
+  parser.add_argument('--hrs', metavar='SECS', type=float, default=0,
+      help='Hours shift.')
+  parser.add_argument('--days', metavar='SECS', type=float, default=0,
+      help='Days shift.')
+  _ = parser.parse_args(args)
+  shift_secs = 0
+  if _.secs > 0:
+    shift_secs += int(_.secs)
+  if _.mins > 0:
+    shift_secs += int(_.mins * 60)
+  if _.hrs > 0:
+    shift_secs += int(_.hrs * 60 * 60)
+  if _.days > 0:
+    shift_secs += int(_.days * 60 * 60 * 24)
+  utime = stub.clock(shift_secs)
+  print 'Shift:', shift_secs, 'secs'
+  print 'Unix time:', utime
+  print 'Time string:', _parse_datetime(utime)
+
+
+def _walk(obj, path):
+  if path == '':
+    return None
+  p = path.split('.')
+  def step(obj, part):
+    if type(obj) == list:
+      ind = int(part)
+      if ind >= 0 and ind < len(obj):
+        return obj[ind]
+      else:
+        return None
+    elif type(obj) == dict:
+      return obj.get(part)
+  for part in p:
+    obj = step(obj, part)
+  return obj
+
+
 def subcmd_browse(args, stub, auth):
   parser = _parser('browse')
   parser.add_argument('-f', '-i', '--include', action='append', dest='fields',
       help='Fields to include in the response, e.g. -f user -f admin ...')
   parser.add_argument('-q', '--query', action='append', dest='query',
       help='Query only specific values, e.g. -q user=user1 ...')
+  parser.add_argument('-z', '--quiet-field', action='append', dest='quiet_fields',
+      help='Receive this field but do not show in the table.')
+  parser.add_argument('--sort-by', dest='sort_by', default='',
+      help='Field to sort by.')
+  parser.add_argument('--descending', action='store_true',
+      help='Sort descending')
   parser.add_argument('-w', '--width', type=int, default=0, dest='width',
       help='Output table width (defaults to terminal width).')
   parser.add_argument('collection', metavar='COLLECTION', type=str,
@@ -100,19 +160,27 @@ def subcmd_browse(args, stub, auth):
       val = ':'.join(arr[1:])
       query[key] = _parse_kval(val)
     _.query = query
-  data = stub.db_browse(auth, _.collection, _.query, _.fields)
+  if _.quiet_fields == None:
+    _.quiet_fields = []
+  data = stub.db_browse(auth, _.collection, _.query, _.fields + _.quiet_fields)
   table = ConsoleTable([TableCol(field, 10) for field in _.fields])
   table.fit_width(_.width)
   fields_dict = dict()
   for field in _.fields:
     fields_dict[field] = field
   table.post_header(**fields_dict)
+  data.sort(key=lambda it: _walk(it, _.sort_by))
+  if _.descending:
+    data.reverse()
   for item in data:
     if item.has_key('created'):
       item['created'] = _parse_datetime(item['created'])
     if item.has_key('last_update'):
       item['last_update'] = _parse_datetime(item['last_update'])
-    table.post(**item)
+    tablerow = {}
+    for field in _.fields:
+      tablerow[field] = _walk(item, field)
+    table.post(**tablerow)
 
 
 def subcmd_lookup(args, stub, auth):
@@ -136,15 +204,17 @@ def subcmd_lookup(args, stub, auth):
 
 
 def _parse_kval(val):
-  if val == 'TRUE':
+  if val == 'NONE':
+    val = None
+  elif val == 'TRUE':
     val = True
   elif val == 'FALSE':
     val = False
-  elif val.startswith('INT_'):
+  elif val.startswith('INT:'):
     val = int(val[4:])
-  elif val.startswith('LIST_'):
+  elif val.startswith('LIST:'):
     val = val[5:].split(',')
-  elif val.startswith('RAND_'):
+  elif val.startswith('RAND:'):
     n = int(val[5:])
     val = str(2 ** n + random.getrandbits(n))
   return val
@@ -167,7 +237,7 @@ def subcmd_insert(args, stub, auth):
   _ = parser.parse_args(args)
   obj = {}
   if _.yaml != '':
-    obj = yaml.loads(open(_abs_path(_.yaml), 'r').read())
+    obj = yaml.load(open(_abs_path(_.yaml), 'r').read())
   if _.properties is None:
     _.properties = []
   for prop in _.properties:
@@ -269,6 +339,117 @@ def subcmd_problem(args, stub, auth):
   elif _.download:
     obj = stub.db_lookup(auth, 'problems', problem_name, None)
     problem_utils.save_problem(obj, directory)
+
+
+def _colored_verdict(verdict):
+  if verdict == 'ok':
+    return colored('OK', 'green', attrs=['bold'])
+  elif verdict == 'skipped':
+    return colored('--', 'magenta', attrs=['dark'])
+  elif verdict == 'wrong_answer':
+    return colored('WA', 'red', attrs=['bold'])
+  elif verdict == 'presentation_error':
+    return colored('PE', 'cyan', attrs=['bold'])
+  elif verdict == 'idle':
+    return colored('IL', 'blue', attrs=['bold'])
+  elif verdict == 'crash' or verdict == 'crashed':
+    return colored('CR', 'yellow', attrs=['bold'])
+  elif verdict == 'security_violation':
+    return colored('SV', 'yellow', attrs=['bold'])
+  elif verdict == 'timeouted':
+    return colored('TO', 'blue', attrs=['bold'])
+  elif verdict == 'out_of_memory':
+    return colored('OM', 'blue', attrs=['bold'])
+  elif verdict == 'out_of_disk':
+    return colored('OD', 'blue', attrs=['bold'])
+  elif verdict == 'out_of_stack':
+    return colored('OS', 'blue', attrs=['bold'])
+  elif verdict == 'generator_failure':
+    return colored('GF', 'magenta', attrs=['bold'])
+  elif verdict == 'checker_failure':
+    return colored('CF', 'magenta', attrs=['bold'])
+  else:
+    return colored('??', attrs=['bold'])
+
+
+def _monitor_solution(stub, auth, id):
+  tests_console_table = ConsoleTable([
+    TableCol('testn', 4, AlignMode.RIGHT),
+    TableCol('verdict'),
+    TableCol('time', 7),
+    TableCol('mem', 9),
+    TableCol('comment', 20),
+  ])
+  status = ''
+  while True:
+    solution_obj = stub.monitor(auth, id)
+    if solution_obj['status_terminal'] == True:
+      break
+    if solution_obj['status'] != status:
+      status = solution_obj['status']
+      print 'Submission status:', colored(status, attrs=['bold'])
+  if solution_obj['status'] == 'compilation_error':
+    print 'Submission status:', colored('compilation_error', 'red', attrs=['dark'])
+    print base64.b64decode(solution_obj['compiler_log_b64'])
+  elif solution_obj['status'] == 'failed':
+    print 'Submission status:', colored('compilation_error', 'magenta', attrs=['dark'])
+    print solution_obj['status_description']
+  elif solution_obj['status'] == 'ready':
+    print 'Submission status:', colored('ready', 'green', attrs=['dark'])
+    testsets = solution_obj.get('testsets')
+    if testsets is None:
+      testsets = sorted(list(solution_obj['results']))
+    for testset in testsets:
+      print
+      print 'Tests from testset:', colored(testset, attrs=['underline'])
+      tests = solution_obj['results'][testset]
+      accepted = True
+      for test in sorted(list(tests)):
+        tests_console_table.post(
+          testn=test + '.',
+          verdict=_colored_verdict(tests[test]['verdict']),
+          time=_concat(tests[test]['runtime'].get('time'), 's'),
+          mem=_concat(tests[test]['runtime'].get('max-rss'), 'kb'),
+          comment=tests[test]['comment']
+        )
+        if tests[test]['verdict'] != 'ok':
+          accepted = False
+        if tests[test]['verdict'] != 'skipped':
+          sleep(0.2)
+      testset_result = colored('accepted', 'green', attrs=['bold']) if accepted else colored('rejected', 'red', attrs=['dark'])
+      print 'Testset result:', testset_result
+  else:
+    print ('Unknown status: %s' % solution_obj['status'])
+
+
+def subcmd_submit(args, stub, auth):
+  parser = _parser('submit')
+  parser.add_argument('-c', '--contest', metavar='CONTEST', type=str, dest='contest',
+      help='Contest name, can also be inferred from the source code file name.')
+  parser.add_argument('-t', '--task', metavar='TASK', type=str, dest='task',
+      help='Task name, can also be inferred from the source code file name.')
+  parser.add_argument('-l', '--lang', metavar='LANG', type=str, dest='lang',
+      help='Programming language in which your program is written.')
+  parser.add_argument('source_code', metavar='SOURCE_CODE',
+      help='Solution source code file.')
+  parser.add_argument('--detached', action='store_true',
+      help='Detached mode: only print the submission id and exit.')
+  _ = parser.parse_args(args)
+
+  source_code = _abs_path(_.source_code)
+  try:
+    contest = _.contest if _.contest is not None else '_'.join(_basename_noext(source_code).split('_')[:-1])
+    task = _.task if _.task is not None else _basename_noext(source_code).split('_')[-1]
+  except IndexError:
+    _fail('Unable to infer contest and task from source code file name')
+  language = _.lang if _.lang is not None else _detect_language(_ext(source_code))
+  source_code_b64 = base64.b64encode(open(source_code, 'r').read())
+  solution = stub.submit(auth, contest, task, language, source_code_b64)
+  if _.detached:
+    print solution['solution']
+  else:
+    print 'Submitting solution..'
+    _monitor_solution(stub, auth, solution['solution'])
 
 
 def main():

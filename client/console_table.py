@@ -18,7 +18,7 @@ def _align(text, width, mode=AlignMode.LEFT, placeholder=' '):
     elif mode == AlignMode.RIGHT:
       return extra_str + text
   elif n > width:
-    k = n - 2
+    k = width - 2
     circumsized = text[:k]
     return circumsized + '..'
   else:
