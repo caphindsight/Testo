@@ -97,6 +97,8 @@ class RpcService:
       'status': 'queued',
       'status_terminal': False,
     }
+    if solution_obj['testsets'] == str:
+      solution_obj['testsets'] = [solution_obj['testsets']]
     id = self.solutions.insert_with_random_id(solution_obj)
     return {
       'solution': id
@@ -124,7 +126,7 @@ class RpcService:
       raise AccessDeniedException('Your solution hasn\'t been consolidated yet')
     if task not in scorings[user]:
       raise AccessDeniedException('Your solution hasn\'t been consolidated yet')
-    return scorings[task]
+    return scorings[user][task]
 
   def get_scorings(self, auth, contest):
     self.users.authorize(auth['user'], auth['token'])
@@ -150,7 +152,7 @@ class RpcService:
         else:
           entry['task_points'][task] = 0
       scorings.append(entry)
-    sort(scorings, key=lambda x: -x['total_points'])
+    scorings.sort(key=lambda x: -x['total_points'])
     for i in xrange(len(scorings)):
       scorings[i]['rank'] = i + 1
     return {

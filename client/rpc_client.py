@@ -357,6 +357,8 @@ def _colored_verdict(verdict):
     return colored('IL', 'blue', attrs=['bold'])
   elif verdict == 'crash' or verdict == 'crashed':
     return colored('CR', 'yellow', attrs=['bold'])
+  elif verdict == 'runtime_error':
+    return colored('RE', 'yellow', attrs=['bold'])
   elif verdict == 'security_violation':
     return colored('SV', 'yellow', attrs=['bold'])
   elif verdict == 'timeouted':
@@ -401,7 +403,7 @@ def _monitor_solution(stub, auth, id):
     print 'Submission status:', colored('ready', 'green', attrs=['dark'])
     testsets = solution_obj.get('testsets')
     if testsets is None:
-      testsets = sorted(list(solution_obj['results']['testsets']))
+      testsets = sorted([ts for ts in solution_obj['results']['testsets']])
     for testset in testsets:
       print
       print 'Tests from testset:', colored(testset, attrs=['underline'])
@@ -421,13 +423,18 @@ def _monitor_solution(stub, auth, id):
       testset_result = colored(verdict, 'green' if verdict_good else 'red',
           attrs=['bold' if verdict_good else 'dark'])
       print 'Testset result:', testset_result
-    print
     verdict = solution_obj['results']['verdict']
     verdict_good = verdict in ['accepted', 'max_score']
-    testset_result = colored(verdict, 'green' if verdict_good else 'red',
+    solution_result = colored(verdict, 'green' if verdict_good else 'red',
         attrs=['bold' if verdict_good else 'dark'])
-    print 'Solution result:', solution_result
-    print 'Solution points:', solution_obj['results'].get('points')
+    solution_points = solution_obj['results'].get('points')
+    if len(testsets) > 1:
+      print
+      print 'Solution result:', solution_result
+    if solution_points is not None:
+      if len(testsets) == 1:
+        print
+      print 'Solution points:', solution_points
   else:
     print ('Unknown status: %s' % solution_obj['status'])
 
@@ -466,37 +473,35 @@ def subcmd_consolidate(args, stub, auth):
   parser = _parser('consolidate')
   parser.add_argument('-c', '--contest', metavar='CONTEST', type=str, dest='contest',
       help='Contest name.')
-  parser.add_argument('-t', '--testsets', metavar='TESTSETS', action='append', dest='testsets',
-      help='Testsets to test against.')
   _ = parser.parse_args(args)
 
-  if _.testsets is None:
-    _.testsets = []
-
-  contest_obj = stub.db_lookup(auth, 'contests', _.contest)
+  contest_obj = stub.db_lookup(auth, 'contests', _.contest, None)
+  if contest_obj.get('consolidated') == True:
+    _fail('Contest already consolidated')
   contestants = set(contest_obj['contestants'])
   tasks_to_problems = dict()
   for task in contest_obj['tasks']:
     tasks_to_problems[task] = contest_obj['tasks'][task]['problem']
 
   solution_objs = stub.db_browse(auth, 'solutions',
-      {'contest': _.contest, 'result': 'accepted', 'live_submit': True},
-      ['solution', 'created', 'results', 'task', 'user']
+      {'contest': _.contest, 'results.verdict': 'accepted', 'live_submit': True},
+      ['solution', 'contest', 'created', 'language', 'results',
+       'source_code_b64', 'task', 'user']
   )
 
   buckets = dict()
   collected_count = 0
   for solution_obj in solution_objs:
-    solution_user = solution['user']
+    solution_user = solution_obj['user']
     if solution_user not in contestants:
       continue
-    solution_task = solution['task']
+    solution_task = solution_obj['task']
     if solution_task not in tasks_to_problems:
       continue
     bucket_key = (solution_user, solution_task)
-    if not buckets.has(bucket_key):
+    if bucket_key not in buckets:
       buckets[bucket_key] = []
-    buckets[bucket_key].append(solution)
+    buckets[bucket_key].append(solution_obj)
     collected_count += 1
 
   print ('Collected %s solutions.' % collected_count)
@@ -506,7 +511,7 @@ def subcmd_consolidate(args, stub, auth):
 
   for bucket_key in buckets:
     progress = float(buckets_covered) / float(buckets_size)
-    print ('Progress: %s%%..' % (progress * 100))
+    print ('Progress: %s%%..' % int(progress * 100))
     buckets[bucket_key].sort(key=lambda x: -x['created'])
     sol = buckets[bucket_key][0]
     user = sol['user']
@@ -515,20 +520,23 @@ def subcmd_consolidate(args, stub, auth):
     print
     print 'Contestant:', colored(user, 'white', attrs=['bold'])
     print 'Task:', colored(task, 'white', attrs=['bold']) + ',', tasks_to_problems.get(task)
+    consolidation_testsets = contest_obj['tasks'][task].get('consolidation_testsets')
+    if consolidation_testsets is None:
+      consolidation_testsets = []
     new_solution = stub.db_insert_with_random_id(auth, 'solutions', {
       'user': user,
       'contest': sol['contest'],
       'task': task,
       'problem': tasks_to_problems.get(task),
-      'testsets': _.testsets,
+      'testsets': consolidation_testsets,
       'scoring': 'quantitative',
       'language': sol['language'],
       'source_code_b64': sol['source_code_b64'],
       'status': 'queued',
       'status_terminal': False,
     })
-    _monitor_solution(new_solution)
-    new_solution_obj = stub.db_lookup(auth, 'solutions', new_solution)
+    _monitor_solution(stub, auth, new_solution)
+    new_solution_obj = stub.db_lookup(auth, 'solutions', new_solution, None)
     points = new_solution_obj['results'].get('points')
     if points is None:
       points = 0
@@ -537,7 +545,7 @@ def subcmd_consolidate(args, stub, auth):
       'scorings.' + user + '.' + task + '.results': new_solution_obj['results'],
       'scorings.' + user + '.' + task + '.points': points,
     })
-  stub.update(auth, 'contests', _.contest, {'consolidated': True})
+  stub.db_update(auth, 'contests', _.contest, {'consolidated': True})
   print
   print
   print 'Done!'
@@ -586,13 +594,13 @@ def subcmd_scorings(args, stub, auth):
 
   for i in scorings:
     raw = {
-      'rank': i['rank'],
+      'rank': str(i['rank']) + '.',
       'contestant': i['contestant'],
       'total': i['total_points']
     }
     for task in tasks:
       raw[task] = i['task_points'][task]
-    scorings_table.post(**i)
+    scorings_table.post(**raw)
 
 
 def main():

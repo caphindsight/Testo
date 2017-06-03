@@ -46,6 +46,7 @@ def _run_test(sandbox, test_obj, checker, limits):
       'verdict': _verdict_by_status(run_res.meta.get('status')),
       'runtime': run_res.meta,
       'comment': run_res.isolate_stderr,
+      'points': 0,
     }
 
   # Running checker
@@ -59,6 +60,7 @@ def _run_test(sandbox, test_obj, checker, limits):
       'verdict': 'checker_failure',
       'runtime': run_res.meta,
       'comment': err.message,
+      'points': 0,
     }
 
 
@@ -107,7 +109,7 @@ def run_tests(sandbox, problem_obj, solution_obj, compiler_cb, report_cb, testse
     for testset_obj in problem_obj['testsets']:
       testset = testset_obj['testset']
       points_per_test = testset_obj.get('points_per_test')
-      max_points_per_testset = testset_obj.get('max_points_per_testset')
+      max_points_per_testset = testset_obj.get('max_points')
       if points_per_test is None:
         points_per_test = 0
 
@@ -121,13 +123,16 @@ def run_tests(sandbox, problem_obj, solution_obj, compiler_cb, report_cb, testse
           test_res = {
             'verdict': 'skipped',
             'runtime': {},
-            'comment': 'test was skipped'
+            'comment': 'test was skipped',
+            'points': 0,
           }
         else:
           test_res = _run_test(sandbox, test_obj, checker, limits)
           if test_res['verdict'] == 'ok':
+            test_res['points'] = points_per_test
             scored_points_per_testset += points_per_test
           else:
+            test_res['points'] = 0
             rejected = True
             if qualitative_scoring:
               testset_cb(testset, 'rejected', None, test_res['verdict'], test_obj['test'])
@@ -141,7 +146,7 @@ def run_tests(sandbox, problem_obj, solution_obj, compiler_cb, report_cb, testse
       else:
         if not rejected:
           testset_cb(testset, 'max_score', scored_points_per_testset)
-        else
+        else:
           testset_cb(testset, 'partial_score', scored_points_per_testset)
       if rejected:
         solution_rejected = True

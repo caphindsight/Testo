@@ -20,7 +20,7 @@ class DbManager:
     self.solutions = Manager(db['solutions'], 'solution')
 
 
-def process_solution(db_manager, solution_obj):
+def process_solution(config, db_manager, solution_obj):
   solution = solution_obj.get('solution')
   if solution is None:
     return
@@ -105,7 +105,7 @@ def main():
           {'$set': {'status': 'preparing', 'status_terminal': False}}
         )
         if solution_obj is not None:
-          process_solution(db_manager, solution_obj)
+          process_solution(config, db_manager, solution_obj)
         else:
           time.sleep(1.0)
       except KeyboardInterrupt:
