@@ -5,8 +5,86 @@ import pymongo
 import time
 import yaml
 
+from manager import *
+from users_manager import *
+
 import sandbox
 import runner
+
+
+class DbManager:
+  def __init__(self, db):
+    self.db = db
+    self.users = UsersManager(db['users'])
+    self.problems = Manager(db['problems'], 'problem')
+    self.solutions = Manager(db['solutions'], 'solution')
+
+
+def process_solution(db_manager, solution_obj):
+  solution = solution_obj.get('solution')
+  if solution is None:
+    return
+
+  problem = solution_obj.get('problem')
+  if problem is None:
+    db_manager.solutions.update(solution, {
+      'status': 'failed',
+      'status_terminal': True,
+      'status_description': 'Problem not specified',
+    })
+    return
+
+  problem_obj = db_manager.problems.lookup(problem)
+  if problem_obj is None:
+    db_manager.solutions.update(solution, {
+      'status': 'failed',
+      'status_terminal': True,
+      'status_description': ('Problem %s not found' % problem),
+    })
+    return
+
+  box = sandbox.Sandbox(config['sandbox']['box_id'])
+
+  try:
+    def compiler_cb(success, compiler_log):
+      if success:
+        db_manager.solutions.update(solution, {
+          'status': 'running',
+          'status_terminal': False,
+          'compiler_log_b64': base64.b64encode(compiler_log),
+        })
+      else:
+        db_manager.solutions.update(solution, {
+          'status': 'compilation_error',
+          'status_terminal': True,
+          'compiler_log_b64': base64.b64encode(compiler_log),
+        })
+    def report_cb(testset, test, result):
+      db_manager.solutions.update(solution, {
+        'results.testsets.' + testset + '.tests.' + test: result,
+      })
+    def testset_cb(testset, testset_verdict, points=None, test_verdict=None, testn=None):
+      db_manager.solutions.update(solution, {
+        'results.testsets.' + testset + '.verdict': testset_verdict,
+        'results.testsets.' + testset + '.points': points,
+        'results.testsets.' + testset + '.test_verdict': test_verdict,
+        'results.testsets.' + testset + '.failed_test': testn,
+      })
+    def success_cb(solution_verdict, points=None):
+      db_manager.solutions.update(solution, {
+        'status': 'ready',
+        'status_terminal': True,
+        'results.verdict': solution_verdict,
+        'results.points': points,
+      })
+    runner.run_tests(box, problem_obj, solution_obj, compiler_cb, report_cb, testset_cb, success_cb)
+  except Exception, e:
+    db_manager.solutions.update(solution, {
+      'status': 'failed',
+      'status_terminal': True,
+      'status_description': str(e),
+    })
+
 
 def main():
   config_file = os.path.join(
@@ -15,54 +93,27 @@ def main():
   config = yaml.load(open(config_file, 'r').read())
   mongo_client = pymongo.MongoClient(config['mongo']['address'])
   mongo_db = mongo_client[config['mongo']['database']]
-  col_problems = mongo_db['problems']
-  col_solutions = mongo_db['solutions']
-
+  db_manager = DbManager(mongo_db)
   try:
     print 'Testo worker is now active'
     print 'Press Ctrl+C to quit'
 
     while True:
-      solution_obj = col_solutions.find_one_and_update(
-        {'status': 'queued'}, {'$set': {'status': 'compiling'}})
-      if solution_obj is not None:
-        solution = solution_obj['solution']
-        problem = solution_obj['problem']
-        problem_obj = col_problems.find_one({'problem': problem})
-        if problem_obj is None:
-          col_solutions.update_one({'solution': solution},
-              {'$set': {'status': 'failed', 'status_terminal': True,
-                        'status_description': ('Problem %s not found' % problem)}})
-          continue
-        box = sandbox.Sandbox(config['sandbox']['box_id'])
-        try:
-          def compiler_cb(success, compiler_log):
-            col_solutions.update_one({'solution': solution},
-                {'$set':
-                  {'status': 'running' if success else 'compilation_error',
-                   'status_terminal': not success,
-                   'compiler_log_b64': base64.b64encode(compiler_log)}})
-          def report_cb(testset, test, result):
-            col_solutions.update_one({'solution': solution},
-                {'$set': {'results.' + testset + '.' + test: result}})
-          def testset_cb(testset, testset_verdict, test_verdict=None, testn=None):
-            col_solutions.update_one({'solution': solution},
-                {'$set': {
-                    'testset_results.' + testset + '.verdict': testset_verdict,
-                    'testset_results.' + testset + '.test_verdict': test_verdict,
-                    'testset_results.' + testset + '.failed_test': testn
-                }})
-          def success_cb():
-            col_solutions.update_one({'solution': solution},
-                {'$set': {'status': 'ready', 'status_terminal': True}})
-          runner.run_tests(box, problem_obj, solution_obj, compiler_cb, report_cb, testset_cb, success_cb)
-        except Exception, e:
-          col_solutions.update_one({'solution': solution},
-              {'$set': {'status': 'failed', 'status_terminal': True, 'status_description': str(e)}})
-          if config['debug']:
-            raise
-      else:
-        time.sleep(1.0)
+      try:
+        solution_obj = db_manager.db['solutions'].find_one_and_update(
+          {'status': 'queued'},
+          {'$set': {'status': 'preparing', 'status_terminal': False}}
+        )
+        if solution_obj is not None:
+          process_solution(db_manager, solution_obj)
+        else:
+          time.sleep(1.0)
+      except KeyboardInterrupt:
+        raise
+      except Exception, e:
+        print str(e)
+        if config['debug']:
+          raise
   except KeyboardInterrupt:
     print 'Bye!'
 

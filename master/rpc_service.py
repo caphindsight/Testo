@@ -78,6 +78,8 @@ class RpcService:
         raise AccessDeniedException('Contest %s starts in %s minutes' % (contest, (schedule['start'] - now) / 60))
       if now > schedule['finish']:
         raise AccessDeniedException('Contest %s is finished' % contest)
+    if contest_obj.get('consolidated') == True:
+      raise AccessDeniedException('Contest %s has been consolidated' % contest)
     if user not in contest_obj['contestants']:
       raise AccessDeniedException('User %s doesn\'t have access to contest %s' % (user, contest))
     if task not in contest_obj['tasks']:
@@ -86,6 +88,7 @@ class RpcService:
       'user': user,
       'contest': contest,
       'task': task,
+      'live_submit': True,
       'problem': contest_obj['tasks'][task]['problem'],
       'testsets': contest_obj['tasks'][task].get('testsets'),
       'scoring': contest_obj['tasks'][task].get('scoring'),
@@ -103,9 +106,57 @@ class RpcService:
     self.users.authorize(auth['user'], auth['token'])
     user = auth['user']
     solution_obj = self.solutions.lookup(solution)
-    if solution_obj.get('user') != user:
+    if not self.users.is_admin(user) and solution_obj.get('user') != user:
       raise AccessDeniedException('Solution %s was submitted by another person' % solution)
     return solution_obj
+
+  def get_scorings_entry(self, auth, contest, task):
+    self.users.authorize(auth['user'], auth['token'])
+    user = auth['user']
+    is_admin = self.users.is_admin(user)
+    contest_obj = self.contests.lookup(contest)
+    if not is_admin and user not in contest_obj['contestants']:
+      raise AccessDeniedException('User %s doesn\'t have access to contest %s' % (user, contest))
+    if task not in contest_obj['tasks']:
+      raise AccessDeniedException('Task %s not found in contest %s' % (task, contest))
+    scorings = contest_obj['scorings']
+    if user not in scorings:
+      raise AccessDeniedException('Your solution hasn\'t been consolidated yet')
+    if task not in scorings[user]:
+      raise AccessDeniedException('Your solution hasn\'t been consolidated yet')
+    return scorings[task]
+
+  def get_scorings(self, auth, contest):
+    self.users.authorize(auth['user'], auth['token'])
+    user = auth['user']
+    is_admin = self.users.is_admin(user)
+    contest_obj = self.contests.lookup(contest)
+    if contest_obj['consolidated'] != True:
+      raise AccessDeniedException('Contest was not consolidated yet')
+    if not is_admin and user not in contest_obj['contestants']:
+      raise AccessDeniedException('User %s doesn\'t have access to contest %s' % (user, contest))
+    scorings = []
+    for contestant in contest_obj['scorings']:
+      entry = {
+        'contestant': contestant,
+        'total_points': 0,
+        'task_points': dict(),
+      }
+      for task in contest_obj['tasks']:
+        res = contest_obj['scorings'][contestant].get(task)
+        if res is not None:
+          entry['task_points'][task] = res['points']
+          entry['total_points'] += res['points']
+        else:
+          entry['task_points'][task] = 0
+      scorings.append(entry)
+    sort(scorings, key=lambda x: -x['total_points'])
+    for i in xrange(len(scorings)):
+      scorings[i]['rank'] = i + 1
+    return {
+      'scorings': scorings,
+      'tasks': list(contest_obj['tasks']),
+    }
 
   def clock(self, shift_secs):
     return int(time.time()) + shift_secs

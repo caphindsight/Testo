@@ -9,6 +9,8 @@ RUN \
   pip install \
     pymongo pyyaml
 
-COPY . /testo_master
-WORKDIR /testo_master
-CMD python master.py
+COPY . /testo
+WORKDIR /testo
+RUN \
+  cp /testo/dblib/* /testo/master/ && \
+  cp /testo/dblib/* /testo/worker/

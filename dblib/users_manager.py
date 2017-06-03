@@ -32,3 +32,10 @@ class UsersManager(Manager):
     if user_obj['admin'] is not True:
       raise AccessDeniedException('Access denied for user \'%s\'' % user)
     return user_obj
+
+  def is_admin(self, user):
+    user_obj = self.lookup(user)
+    if user_obj is not None:
+      return user_obj.get('admin') == True
+    else:
+      return False

@@ -24,9 +24,12 @@ COMMANDS = {
   'drop': 'Delete object from the database collection.',
   'cleanup': 'Clean up old objects in the database collection.',
 
-  'problem': 'Helper command to upload and download problems.',
+  'problem': 'Helper command for uploading and downloading problems data.',
+  'consolidate': 'Helper command for consolidating last accepted solutions in the contest.',
 
   'submit': 'Submit solution for a contest task.',
+  'monitor': 'Monitor your solution results.',
+  'scorings': 'Monitor contest scoring.',
 }
 
 def _parser(command):
@@ -398,12 +401,11 @@ def _monitor_solution(stub, auth, id):
     print 'Submission status:', colored('ready', 'green', attrs=['dark'])
     testsets = solution_obj.get('testsets')
     if testsets is None:
-      testsets = sorted(list(solution_obj['results']))
+      testsets = sorted(list(solution_obj['results']['testsets']))
     for testset in testsets:
       print
       print 'Tests from testset:', colored(testset, attrs=['underline'])
-      tests = solution_obj['results'][testset]
-      accepted = True
+      tests = solution_obj['results']['testsets'][testset]['tests']
       for test in sorted(list(tests)):
         tests_console_table.post(
           testn=test + '.',
@@ -412,12 +414,20 @@ def _monitor_solution(stub, auth, id):
           mem=_concat(tests[test]['runtime'].get('max-rss'), 'kb'),
           comment=tests[test]['comment']
         )
-        if tests[test]['verdict'] != 'ok':
-          accepted = False
         if tests[test]['verdict'] != 'skipped':
           sleep(0.2)
-      testset_result = colored('accepted', 'green', attrs=['bold']) if accepted else colored('rejected', 'red', attrs=['dark'])
+      verdict = solution_obj['results']['testsets'][testset]['verdict']
+      verdict_good = verdict in ['accepted', 'max_score']
+      testset_result = colored(verdict, 'green' if verdict_good else 'red',
+          attrs=['bold' if verdict_good else 'dark'])
       print 'Testset result:', testset_result
+    print
+    verdict = solution_obj['results']['verdict']
+    verdict_good = verdict in ['accepted', 'max_score']
+    testset_result = colored(verdict, 'green' if verdict_good else 'red',
+        attrs=['bold' if verdict_good else 'dark'])
+    print 'Solution result:', solution_result
+    print 'Solution points:', solution_obj['results'].get('points')
   else:
     print ('Unknown status: %s' % solution_obj['status'])
 
@@ -452,6 +462,139 @@ def subcmd_submit(args, stub, auth):
     _monitor_solution(stub, auth, solution['solution'])
 
 
+def subcmd_consolidate(args, stub, auth):
+  parser = _parser('consolidate')
+  parser.add_argument('-c', '--contest', metavar='CONTEST', type=str, dest='contest',
+      help='Contest name.')
+  parser.add_argument('-t', '--testsets', metavar='TESTSETS', action='append', dest='testsets',
+      help='Testsets to test against.')
+  _ = parser.parse_args(args)
+
+  if _.testsets is None:
+    _.testsets = []
+
+  contest_obj = stub.db_lookup(auth, 'contests', _.contest)
+  contestants = set(contest_obj['contestants'])
+  tasks_to_problems = dict()
+  for task in contest_obj['tasks']:
+    tasks_to_problems[task] = contest_obj['tasks'][task]['problem']
+
+  solution_objs = stub.db_browse(auth, 'solutions',
+      {'contest': _.contest, 'result': 'accepted', 'live_submit': True},
+      ['solution', 'created', 'results', 'task', 'user']
+  )
+
+  buckets = dict()
+  collected_count = 0
+  for solution_obj in solution_objs:
+    solution_user = solution['user']
+    if solution_user not in contestants:
+      continue
+    solution_task = solution['task']
+    if solution_task not in tasks_to_problems:
+      continue
+    bucket_key = (solution_user, solution_task)
+    if not buckets.has(bucket_key):
+      buckets[bucket_key] = []
+    buckets[bucket_key].append(solution)
+    collected_count += 1
+
+  print ('Collected %s solutions.' % collected_count)
+
+  buckets_size = len(buckets)
+  buckets_covered = 0
+
+  for bucket_key in buckets:
+    progress = float(buckets_covered) / float(buckets_size)
+    print ('Progress: %s%%..' % (progress * 100))
+    buckets[bucket_key].sort(key=lambda x: -x['created'])
+    sol = buckets[bucket_key][0]
+    user = sol['user']
+    task = sol['task']
+    sleep(0.5)
+    print
+    print 'Contestant:', colored(user, 'white', attrs=['bold'])
+    print 'Task:', colored(task, 'white', attrs=['bold']) + ',', tasks_to_problems.get(task)
+    new_solution = stub.db_insert_with_random_id(auth, 'solutions', {
+      'user': user,
+      'contest': sol['contest'],
+      'task': task,
+      'problem': tasks_to_problems.get(task),
+      'testsets': _.testsets,
+      'scoring': 'quantitative',
+      'language': sol['language'],
+      'source_code_b64': sol['source_code_b64'],
+      'status': 'queued',
+      'status_terminal': False,
+    })
+    _monitor_solution(new_solution)
+    new_solution_obj = stub.db_lookup(auth, 'solutions', new_solution)
+    points = new_solution_obj['results'].get('points')
+    if points is None:
+      points = 0
+    stub.db_update(auth, 'contests', _.contest, {
+      'scorings.' + user + '.' + task + '.consolidated_solution': new_solution,
+      'scorings.' + user + '.' + task + '.results': new_solution_obj['results'],
+      'scorings.' + user + '.' + task + '.points': points,
+    })
+  stub.update(auth, 'contests', _.contest, {'consolidated': True})
+  print
+  print
+  print 'Done!'
+
+
+def subcmd_monitor(args, stub, auth):
+  parser = _parser('monitor')
+  parser.add_argument('-c', '--contest', metavar='CONTEST', type=str, dest='contest',
+      help='Contest name.')
+  parser.add_argument('-t', '--task', metavar='TASK', dest='task',
+      help='Task name.')
+  _ = parser.parse_args(args)
+  scorings_entry = stub.get_scorings_entry(auth, _.contest, _.task)
+  solution = scorings_entry['consolidated_solution']
+  _monitor_solution(solution)
+
+
+def subcmd_scorings(args, stub, auth):
+  parser = _parser('scorings')
+  parser.add_argument('-c', '--contest', metavar='CONTEST', type=str, dest='contest',
+      help='Contest name.')
+  parser.add_argument('-w', '--width', type=int, default=0, dest='width',
+      help='Output table width (defaults to terminal width).')
+  _ = parser.parse_args(args)
+  res = stub.get_scorings(auth, _.contest)
+  scorings = res['scorings']
+  tasks = res['tasks']
+
+  scorings_table_cols = [
+    TableCol('rank', 5),
+    TableCol('contestant', 20),
+  ]
+  scoring_table_header = {
+    'rank': '#',
+    'contestant': 'contestant',
+    'total': '=',
+  }
+  for task in tasks:
+    scorings_table_cols.append(TableCol(task, 5))
+    scoring_table_header[task] = task
+  scorings_table_cols.append(TableCol('total', 5))
+
+  scorings_table = ConsoleTable(scorings_table_cols)
+  scorings_table.fit_width(_.width)
+  scorings_table.post_header(**scoring_table_header)
+
+  for i in scorings:
+    raw = {
+      'rank': i['rank'],
+      'contestant': i['contestant'],
+      'total': i['total_points']
+    }
+    for task in tasks:
+      raw[task] = i['task_points'][task]
+    scorings_table.post(**i)
+
+
 def main():
   config_file = os.path.join(
       os.path.dirname(os.path.realpath(__file__)),
@@ -471,6 +614,7 @@ def main():
       exit(1)
     else:
       func(args, stub, auth)
+
 
 if __name__ == '__main__':
   try:

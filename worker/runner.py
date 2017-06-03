@@ -63,6 +63,8 @@ def _run_test(sandbox, test_obj, checker, limits):
 
 
 def run_tests(sandbox, problem_obj, solution_obj, compiler_cb, report_cb, testset_cb, success_cb):
+  qualitative_scoring = solution_obj.get('scoring') == 'qualitative'
+
   sandbox.create()
   try:
     logging.info('Running tests for %s (problem %s, user %s)' %
@@ -98,13 +100,24 @@ def run_tests(sandbox, problem_obj, solution_obj, compiler_cb, report_cb, testse
     else:
       raise Exception('Unsupported checker: %s' % problem_obj['checker'])
 
+    solution_rejected = False
+    scored_points = 0
+    max_points = problem_obj.get('max_points')
+
     for testset_obj in problem_obj['testsets']:
       testset = testset_obj['testset']
+      points_per_test = testset_obj.get('points_per_test')
+      max_points_per_testset = testset_obj.get('max_points_per_testset')
+      if points_per_test is None:
+        points_per_test = 0
+
+      scored_points_per_testset = 0
+
       if testset not in testsets:
         continue
-      failed = False
+      rejected = False
       for test_obj in testset_obj['tests']:
-        if failed and solution_obj.get('scoring') == 'qualitative':
+        if rejected and qualitative_scoring:
           test_res = {
             'verdict': 'skipped',
             'runtime': {},
@@ -112,13 +125,31 @@ def run_tests(sandbox, problem_obj, solution_obj, compiler_cb, report_cb, testse
           }
         else:
           test_res = _run_test(sandbox, test_obj, checker, limits)
-          if test_res['verdict'] != 'ok':
-            failed = True
-            testset_cb(testset, 'rejected', test_res['verdict'], test_obj['test'])
+          if test_res['verdict'] == 'ok':
+            scored_points_per_testset += points_per_test
+          else:
+            rejected = True
+            if qualitative_scoring:
+              testset_cb(testset, 'rejected', None, test_res['verdict'], test_obj['test'])
         report_cb(testset, test_obj['test'], test_res)
-      if not failed:
-        testset_cb(testset, 'accepted')
-
-    success_cb()
+      if not rejected and max_points_per_testset is not None:
+        scored_points_per_testset = max_points_per_testset
+      scored_points += scored_points_per_testset
+      if qualitative_scoring:
+        if not rejected:
+          testset_cb(testset, 'accepted')
+      else:
+        if not rejected:
+          testset_cb(testset, 'max_score', scored_points_per_testset)
+        else
+          testset_cb(testset, 'partial_score', scored_points_per_testset)
+      if rejected:
+        solution_rejected = True
+    if qualitative_scoring:
+      success_cb('accepted' if not solution_rejected else 'rejected', None)
+    else:
+      if not solution_rejected and max_points is not None:
+        scored_points = max_points
+      success_cb('max_score' if not solution_rejected else 'partial_score', scored_points)
   finally:
     sandbox.delete()
