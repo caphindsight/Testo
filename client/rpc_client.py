@@ -361,6 +361,8 @@ def _colored_verdict(verdict):
     return colored('CR', 'yellow', attrs=['bold'])
   elif verdict == 'runtime_error':
     return colored('RE', 'yellow', attrs=['bold'])
+  elif verdict == 'segfaulted':
+    return colored('SG', 'yellow', attrs=['bold'])
   elif verdict == 'security_violation':
     return colored('SV', 'yellow', attrs=['bold'])
   elif verdict == 'timeouted':
