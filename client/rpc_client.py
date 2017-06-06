@@ -27,6 +27,7 @@ COMMANDS = {
   'problem': 'Helper command for uploading and downloading problems data.',
   'consolidate': 'Helper command for retesting contest.',
   'run': 'Helper command to run a solution bypassing the need for contests.',
+  'download': 'Helper command to download solution source code.',
 
   'submit': 'Submit solution for a contest task.',
   'monitor': 'Monitor your solution results.',
@@ -646,6 +647,15 @@ def subcmd_scorings(args, stub, auth):
     for task in tasks:
       raw[task] = i['task_points'][task]
     scorings_table.post(**raw)
+
+
+def subcmd_download(args, stub, auth):
+  parser = _parser('download')
+  parser.add_argument('solution', metavar='SOLUTION_ID',
+      help='Download source code for this solution.')
+  _ = parser.parse_args(args)
+  res = stub.db_lookup(auth, 'solutions', _.solution, ['source_code_b64'])
+  sys.stdout.write(base64.b64decode(res['source_code_b64']))
 
 
 def main():
