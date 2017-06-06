@@ -385,7 +385,7 @@ def _monitor_solution(stub, auth, id):
     TableCol('verdict'),
     TableCol('time', 7),
     TableCol('mem', 9),
-    TableCol('comment', 20),
+    TableCol('comment', 40),
   ])
   status = ''
   while True:
