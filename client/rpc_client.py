@@ -603,10 +603,13 @@ def subcmd_monitor(args, stub, auth):
       help='Contest name.')
   parser.add_argument('-t', '--task', metavar='TASK', dest='task',
       help='Task name.')
+  parser.add_argument('-s', '--solution', metavar='SOLUTION', dest='solution',
+      help='Alternatively, solution id.')
   _ = parser.parse_args(args)
-  scorings_entry = stub.get_scorings_entry(auth, _.contest, _.task)
-  solution = scorings_entry['consolidated_solution']
-  _monitor_solution(solution)
+  if _.solution is None:
+    scorings_entry = stub.get_scorings_entry(auth, _.contest, _.task)
+    _.solution = scorings_entry['consolidated_solution']
+  _monitor_solution(stub, auth, _.solution)
 
 
 def subcmd_scorings(args, stub, auth):
