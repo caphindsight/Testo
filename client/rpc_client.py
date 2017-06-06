@@ -25,7 +25,8 @@ COMMANDS = {
   'cleanup': 'Clean up old objects in the database collection.',
 
   'problem': 'Helper command for uploading and downloading problems data.',
-  'consolidate': 'Helper command for consolidating last accepted solutions in the contest.',
+  'consolidate': 'Helper command for retesting contest.',
+  'run': 'Helper command to run a solution bypassing the need for contests.',
 
   'submit': 'Submit solution for a contest task.',
   'monitor': 'Monitor your solution results.',
@@ -467,6 +468,50 @@ def subcmd_submit(args, stub, auth):
   else:
     print 'Submitting solution..'
     _monitor_solution(stub, auth, solution['solution'])
+
+
+def subcmd_run(args, stub, auth):
+  parser = _parser('run')
+  parser.add_argument('-p', '--problem', metavar='PROBLEM', type=str, dest='problem',
+      help='Problem name, can also be inferred from the source code file name.')
+  parser.add_argument('-l', '--lang', metavar='LANG', type=str, dest='lang',
+      help='Programming language in which your program is written.')
+  parser.add_argument('-t', '--testsets', metavar='TESTSETS', action='append', dest='testsets',
+      help='Testsets to run against.')
+  parser.add_argument('--scoring', metavar='SCORING', default='quantitative', dest='scoring',
+      help='Scoring (quantitative or qualitative).')
+  parser.add_argument('source_code', metavar='SOURCE_CODE',
+      help='Solution source code file.')
+  parser.add_argument('--detached', action='store_true',
+      help='Detached mode: only print the submission id and exit.')
+  _ = parser.parse_args(args)
+
+  source_code = _abs_path(_.source_code)
+  try:
+    problem = _.problem if _.problem is not None else _basename_noext(source_code)
+  except IndexError:
+    _fail('Unable to infer problem from source code file name')
+  language = _.lang if _.lang is not None else _detect_language(_ext(source_code))
+  source_code_b64 = base64.b64encode(open(source_code, 'r').read())
+
+  solution = stub.db_insert_with_random_id(auth, 'solutions', {
+    'user': auth['user'],
+    'contest': '',
+    'task': '',
+    'live_submit': False,
+    'problem': problem,
+    'testsets': _.testsets,
+    'scoring': _.scoring,
+    'language': language,
+    'source_code_b64': source_code_b64,
+    'status': 'queued',
+    'status_terminal': False,
+  })
+  if _.detached:
+    print solution
+  else:
+    print 'Running solution..'
+    _monitor_solution(stub, auth, solution)
 
 
 def subcmd_consolidate(args, stub, auth):
